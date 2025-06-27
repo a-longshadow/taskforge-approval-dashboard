@@ -563,7 +563,9 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "3142af19-c362-47fc-b046-5e1d2b3882b9",
-        "options": {}
+        "options": {
+          "allowedOrigins": "https://web-production-c8f1d.up.railway.app,*"
+        }
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,

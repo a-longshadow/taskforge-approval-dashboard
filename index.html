@@ -372,6 +372,8 @@
         }
 
         async function submitApprovals() {
+            console.log('🚀 Starting submission process...');
+            
             const approvedTasks = [];
             
             Object.entries(tasksByMeeting).forEach(([meetingId, meeting]) => {
@@ -391,6 +393,8 @@
                 });
             });
 
+            console.log(`📊 Found ${approvedTasks.length} approved tasks out of ${totalTasks} total`);
+
             if (approvedTasks.length === 0) {
                 alert('Please approve at least one task before submitting.');
                 return;
@@ -407,36 +411,53 @@
                     session_id: 'session_' + Date.now()
                 };
 
-                console.log('Submitting payload:', payload);
+                console.log('📤 Submitting payload to:', webhookUrl);
+                console.log('📋 Payload:', payload);
+
+                // Show loading state
+                const submitBtn = document.querySelector('.submit-btn');
+                const originalText = submitBtn.textContent;
+                submitBtn.textContent = '⏳ Submitting...';
+                submitBtn.disabled = true;
 
                 const response = await fetch(webhookUrl, {
                     method: 'POST',
-                    mode: 'cors',
                     headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(payload)
                 });
 
-                console.log('Response status:', response.status);
-                console.log('Response headers:', response.headers);
+                console.log('📡 Response status:', response.status);
+                console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()));
 
                 if (response.ok || response.status === 200) {
+                    const responseData = await response.text();
+                    console.log('✅ Success response:', responseData);
+                    
                     document.getElementById('content').style.display = 'none';
                     document.getElementById('success').style.display = 'block';
                     
                     setTimeout(() => { window.close(); }, 3000);
                 } else {
                     const errorText = await response.text();
+                    console.error('❌ Server error:', errorText);
                     throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
             } catch (error) {
-                console.error('Submit error:', error);
+                console.error('❌ Submit error:', error);
+                
+                // Reset button
+                const submitBtn = document.querySelector('.submit-btn');
+                submitBtn.textContent = '💾 Submit to TaskForge';
+                submitBtn.disabled = false;
+                
                 let errorMsg = error.message;
                 
                 if (error.name === 'TypeError' && error.message.includes('fetch')) {
                     errorMsg = 'Network error - webhook might be blocked by CORS. Check console for details.';
+                } else if (error.message.includes('CORS')) {
+                    errorMsg = 'CORS error - please check browser console for details.';
                 }
                 
                 document.getElementById('errorMessage').textContent = errorMsg;
