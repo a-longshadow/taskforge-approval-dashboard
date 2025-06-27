@@ -388,8 +388,8 @@
       "name": "Extract · Extract_Header_Only_Request",
       "credentials": {
         "httpBearerAuth": {
-          "id": "yLiqASW1jPHD8ODE",
-          "name": "Bearer Auth account - FIREFLIES"
+          "id": "xd0xbPt26XjPhgBI",
+          "name": "Bearer Auth FireFlies - Andrew"
         }
       },
       "onError": "continueErrorOutput"
@@ -446,8 +446,8 @@
       "name": "Extract · Detailed_Request",
       "credentials": {
         "httpBearerAuth": {
-          "id": "yLiqASW1jPHD8ODE",
-          "name": "Bearer Auth account - FIREFLIES"
+          "id": "xd0xbPt26XjPhgBI",
+          "name": "Bearer Auth FireFlies - Andrew"
         }
       },
       "onError": "continueErrorOutput"
@@ -548,7 +548,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// SUPER SIMPLE - NO SESSIONS\ntry {\n  const tasks = [];\n  \n  // Process input tasks\n  items.forEach((item, index) => {\n    if (item.json) {\n      tasks.push({\n        task_id: `task_${Date.now()}_${index}`,\n        task_item: item.json.task_item || 'Untitled Task',\n        assignee_full_names: item.json['assignee(s)_full_names'] || 'Unassigned',\n        assignee_emails: item.json.assignee_emails || '',\n        priority: item.json.priority || 'Medium',\n        brief_description: item.json.brief_description || 'No description',\n        date_expected: item.json.date_expected || new Date().toISOString().split('T')[0]\n      });\n    }\n  });\n\n  if (tasks.length === 0) {\n    return [{ json: { error: 'No tasks found', status: 'no_tasks' } }];\n  }\n\n  const meetingTitle = 'TaskForge Meeting';\n  \n  // Send tasks directly in URL (no sessions!)\n  const tasksData = encodeURIComponent(JSON.stringify(tasks));\n  const approvalUrl = `https://web-production-c8f1d.up.railway.app?tasks=${tasksData}&title=${encodeURIComponent(meetingTitle)}&webhook=${encodeURIComponent('https://levirybalov.app.n8n.cloud/webhook/3142af19-c362-47fc-b046-5e1d2b3882b9')}`;\n\n  return [{\n    json: {\n      approval_url: approvalUrl,\n      tasks_count: tasks.length,\n      \n      // For Telegram\n      telegram_message: `🔥 *TaskForge Approval Required*\\n\\n📋 *Meeting:* ${meetingTitle}\\n📊 *Tasks:* ${tasks.length}\\n\\n👆 [*APPROVE TASKS*](${approvalUrl})`,\n      \n      // For Email  \n      email_subject: `TaskForge: ${tasks.length} Action Items Need Approval`,\n      email_html: `<h2>TaskForge Approval</h2><p>${tasks.length} tasks need approval.</p><p><a href=\"${approvalUrl}\">Click to approve</a></p>`,\n      \n      status: 'success'\n    }\n  }];\n\n} catch (error) {\n  return [{ json: { error: error.message, status: 'error' } }];\n}"
+        "jsCode": "// HITL APPROVAL - DIRECT TO RAILWAY APP\ntry {\n  const tasks = [];\n  \n  // Process input tasks\n  items.forEach((item, index) => {\n    if (item.json) {\n      tasks.push({\n        task_id: `task_${Date.now()}_${index}`,\n        task_item: item.json.task_item || 'Untitled Task',\n        assignee_full_names: item.json['assignee(s)_full_names'] || 'Unassigned',\n        assignee_emails: item.json.assignee_emails || '',\n        priority: item.json.priority || 'Medium',\n        brief_description: item.json.brief_description || 'No description',\n        date_expected: item.json.date_expected || new Date().toISOString().split('T')[0]\n      });\n    }\n  });\n\n  if (tasks.length === 0) {\n    return [{ json: { error: 'No tasks found', status: 'no_tasks' } }];\n  }\n\n  const meetingTitle = 'TaskForge Meeting';\n  \n  // Encode tasks for URL\n  const tasksData = encodeURIComponent(JSON.stringify(tasks));\n const approvalUrl = `https://web-production-c8f1d.up.railway.app?tasks=${tasksData}&title=${encodeURIComponent(meetingTitle)}&webhook=${encodeURIComponent('https://levirybalov.app.n8n.cloud/webhook/3142af19-c362-47fc-b046-5e1d2b3882b9')}`;\n\n  return [{\n    json: {\n      approval_url: approvalUrl,\n      tasks_count: tasks.length,\n      \n      // For Telegram\n      telegram_message: `🔥 *TaskForge Approval Required*\\n\\n📋 *Meeting:* ${meetingTitle}\\n📊 *Tasks:* ${tasks.length}\\n\\n👆 [*APPROVE TASKS*](${approvalUrl})`,\n      \n      // For Email  \n      email_subject: `TaskForge: ${tasks.length} Action Items Need Approval`,\n      email_html: `<h2>TaskForge Approval</h2><p>${tasks.length} tasks need approval.</p><p><a href=\"${approvalUrl}\">Click to approve</a></p>`,\n      \n      status: 'success'\n    }\n  }];\n\n} catch (error) {\n  return [{ json: { error: error.message, status: 'error' } }];\n}"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -561,34 +561,43 @@
     },
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "3142af19-c362-47fc-b046-5e1d2b3882b9",
-        "options": {
-          "allowedOrigins": "https://web-production-c8f1d.up.railway.app,*"
-        }
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        -2160,
-        1580
-      ],
-      "id": "5b517ad7-5bdb-4e4b-8d86-e9bdcfd69052",
-      "name": "Webhook1",
-      "webhookId": "3142af19-c362-47fc-b046-5e1d2b3882b9"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Build Payload for GDrive and Monday.com\n// Processes Flask webhook response and prepares data for both Google Drive and Monday.com\n\ntry {\n  console.log('🔄 Processing Flask webhook response...');\n  \n  // Get the webhook response from Flask\n  const webhookData = $input.first().json;\n  \n  if (!webhookData) {\n    throw new Error('No webhook data received from Flask app');\n  }\n  \n  console.log(`📊 Webhook data received:`, {\n    execution_id: webhookData.execution_id,\n    session_id: webhookData.session_id,\n    approval_status: webhookData.approval_status,\n    approved_count: webhookData.summary?.approved_count || 0,\n    rejected_count: webhookData.summary?.rejected_count || 0\n  });\n  \n  // Extract approved tasks\n  const approvedTasks = webhookData.approved_tasks || [];\n  const rejectedTasks = webhookData.rejected_tasks || [];\n  \n  if (approvedTasks.length === 0) {\n    console.log('⚠️ No approved tasks to process');\n    return [{\n      json: {\n        status: 'no_approved_tasks',\n        message: 'No tasks were approved for processing',\n        summary: webhookData.summary,\n        timestamp: new Date().toISOString()\n      }\n    }];\n  }\n  \n  console.log(`✅ Processing ${approvedTasks.length} approved tasks`);\n  \n  // ============================================\n  // 1. PREPARE GOOGLE DRIVE ACTION_ITEMS.json\n  // ============================================\n  \n  const actionItemsPayload = {\n    metadata: {\n      created_at: new Date().toISOString(),\n      execution_id: webhookData.execution_id,\n      session_id: webhookData.session_id,\n      total_tasks: approvedTasks.length,\n      approval_summary: webhookData.summary,\n      workflow_version: '2.1',\n      source: 'TaskForge_HITL_Approval'\n    },\n    approved_tasks: approvedTasks.map(task => ({\n      task_id: task.task_id,\n      task_item: task.task_item,\n      assignee_emails: task.assignee_emails,\n      assignee_full_names: task.assignee_full_names,\n      priority: task.priority,\n      brief_description: task.brief_description,\n      date_expected: task.date_expected,\n      approved_at: task.approved_at,\n      meeting_context: task.meeting_context || {}\n    })),\n    rejected_tasks: rejectedTasks.map(task => ({\n      task_id: task.task_id,\n      task_item: task.task_item,\n      reason: task.reason,\n      rejected_at: task.rejected_at\n    })),\n    processing_notes: {\n      original_task_count: webhookData.summary?.total_tasks || 0,\n      approval_rate: webhookData.summary?.approval_rate || 0,\n      processed_by: 'TaskForge_HITL_System',\n      next_steps: 'Tasks will be created in Monday.com board'\n    }\n  };\n  \n  // Generate filename for ACTION_ITEMS.json\n  const timestamp = new Date().toISOString().split('T')[0];\n  const sessionShort = webhookData.session_id.split('_').pop().substring(0, 8);\n  const actionItemsFilename = `${timestamp}_ACTION_ITEMS_approved_${approvedTasks.length}_${sessionShort}.json`;\n  \n  // ============================================\n  // 2. PREPARE OUTPUT FOR BOTH SYSTEMS\n  // ============================================\n  \n  const outputs = [];\n  \n  // First output: Google Drive ACTION_ITEMS.json\n  outputs.push({\n    json: {\n      filename: actionItemsFilename,\n      meeting_id: webhookData.session_id,\n      total_tasks: approvedTasks.length,\n      created_at: new Date().toISOString(),\n      ...actionItemsPayload\n    }\n  });\n  \n  // Subsequent outputs: Individual Monday.com tasks\n  approvedTasks.forEach((task, index) => {\n    outputs.push({\n      json: {\n        // Monday.com task format\n        task_item: task.task_item,\n        'assignee(s)_full_names': task.assignee_full_names,\n        assignee_emails: task.assignee_emails,\n        priority: task.priority,\n        brief_description: task.brief_description,\n        date_expected: task.date_expected,\n        \n        // Additional metadata\n        task_id: task.task_id,\n        approved_at: task.approved_at,\n        session_id: webhookData.session_id,\n        execution_id: webhookData.execution_id,\n        task_index: index + 1,\n        total_tasks: approvedTasks.length,\n        \n        // Meeting context if available\n        meeting_title: task.meeting_context?.title || 'TaskForge Meeting',\n        meeting_organizer: task.meeting_context?.organizer || 'Unknown',\n        \n        // Processing metadata\n        source: 'TaskForge_HITL_Approved',\n        workflow_version: '2.1',\n        processed_at: new Date().toISOString()\n      }\n    });\n  });\n  \n  console.log(`📤 Generated outputs:`);\n  console.log(`   - 1 ACTION_ITEMS.json file (${actionItemsFilename})`);\n  console.log(`   - ${approvedTasks.length} Monday.com tasks`);\n  console.log(`   - Total outputs: ${outputs.length}`);\n  \n  return outputs;\n  \n} catch (error) {\n  console.error('❌ Error in Build Payload node:', error.message);\n  \n  return [{\n    json: {\n      error: error.message,\n      status: 'error',\n      timestamp: new Date().toISOString(),\n      debug_info: {\n        input_data: $input.first()?.json || 'No input data',\n        error_stack: error.stack\n      }\n    }\n  }];\n}"
+        "jsCode": "// Build Payload for GDrive and Monday.com\n// UPDATED: Processes Railway webhook response (not Flask)\n\ntry {\n  console.log('🔄 Processing Railway webhook response...');\n  \n  // Get the webhook response from Railway\n  const webhookData = $input.first().json;\n  \n  if (!webhookData) {\n    throw new Error('No webhook data received from Railway app');\n  }\n  \n  console.log(`📊 Railway webhook data received:`, {\n    execution_id: webhookData.execution_id,\n    session_id: webhookData.session_id,\n    approved_count: webhookData.approved_count || 0,\n    total_tasks: webhookData.total_tasks || 0,\n    source: webhookData.source\n  });\n  \n  // Extract approved tasks (Railway format)\n  const approvedTasks = webhookData.approved_tasks || [];\n  \n  if (approvedTasks.length === 0) {\n    console.log('⚠️ No approved tasks to process');\n    return [{\n      json: {\n        status: 'no_approved_tasks',\n        message: 'No tasks were approved for processing',\n        approved_count: 0,\n        total_tasks: webhookData.total_tasks || 0,\n        timestamp: new Date().toISOString()\n      }\n    }];\n  }\n  \n  console.log(`✅ Processing ${approvedTasks.length} approved tasks`);\n  \n  // ============================================\n  // 1. PREPARE GOOGLE DRIVE ACTION_ITEMS.json\n  // ============================================\n  \n  const actionItemsPayload = {\n    metadata: {\n      created_at: new Date().toISOString(),\n      execution_id: webhookData.execution_id,\n      session_id: webhookData.session_id,\n      total_tasks: approvedTasks.length,\n      approval_summary: {\n        approved_count: webhookData.approved_count,\n        total_tasks: webhookData.total_tasks,\n        approval_rate: Math.round((webhookData.approved_count / webhookData.total_tasks) * 100)\n      },\n      workflow_version: '2.1',\n      source: 'TaskForge_HITL_Railway'\n    },\n    approved_tasks: approvedTasks.map(task => ({\n      task_id: task.task_id,\n      task_item: task.task_item,\n      assignee_emails: task.assignee_emails,\n      assignee_full_names: task.assignee_full_names,\n      priority: task.priority,\n      brief_description: task.brief_description,\n      date_expected: task.date_expected,\n      approved_at: task.approved_at,\n      meeting_context: task.meeting_context || {}\n    })),\n    processing_notes: {\n      original_task_count: webhookData.total_tasks || 0,\n      approval_rate: Math.round((webhookData.approved_count / webhookData.total_tasks) * 100),\n      processed_by: 'TaskForge_HITL_Railway',\n      next_steps: 'Tasks will be created in Monday.com board'\n    }\n  };\n  \n  // Generate filename for ACTION_ITEMS.json\n  const timestamp = new Date().toISOString().split('T')[0];\n  const sessionShort = webhookData.session_id.split('_').pop().substring(0, 8);\n  const actionItemsFilename = `${timestamp}_ACTION_ITEMS_approved_${approvedTasks.length}_${sessionShort}.json`;\n  \n  // ============================================\n  // 2. PREPARE OUTPUT FOR BOTH SYSTEMS\n  // ============================================\n  \n  const outputs = [];\n  \n  // First output: Google Drive ACTION_ITEMS.json\n  outputs.push({\n    json: {\n      filename: actionItemsFilename,\n      meeting_id: webhookData.session_id,\n      total_tasks: approvedTasks.length,\n      created_at: new Date().toISOString(),\n      ...actionItemsPayload\n    }\n  });\n  \n  // Subsequent outputs: Individual Monday.com tasks\n  approvedTasks.forEach((task, index) => {\n    outputs.push({\n      json: {\n        // Monday.com task format\n        task_item: task.task_item,\n        'assignee(s)_full_names': task.assignee_full_names,\n        assignee_emails: task.assignee_emails,\n        priority: task.priority,\n        brief_description: task.brief_description,\n        date_expected: task.date_expected,\n        \n        // Additional metadata\n        task_id: task.task_id,\n        approved_at: task.approved_at,\n        session_id: webhookData.session_id,\n        execution_id: webhookData.execution_id,\n        task_index: index + 1,\n        total_tasks: approvedTasks.length,\n        \n        // Meeting context if available\n        meeting_title: task.meeting_context?.title || 'TaskForge Meeting',\n        meeting_organizer: task.meeting_context?.organizer || 'Unknown',\n        \n        // Processing metadata\n        source: 'TaskForge_HITL_Railway',\n        workflow_version: '2.1',\n        processed_at: new Date().toISOString()\n      }\n    });\n  });\n  \n  console.log(`📤 Generated outputs:`);\n  console.log(`   - 1 ACTION_ITEMS.json file (${actionItemsFilename})`);\n  console.log(`   - ${approvedTasks.length} Monday.com tasks`);\n  console.log(`   - Total outputs: ${outputs.length}`);\n  \n  return outputs;\n  \n} catch (error) {\n  console.error('❌ Error in Build Payload node:', error.message);\n  \n  return [{\n    json: {\n      error: error.message,\n      status: 'error',\n      timestamp: new Date().toISOString(),\n      debug_info: {\n        input_data: $input.first()?.json || 'No input data',\n        error_stack: error.stack\n      }\n    }\n  }];\n}"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         -1760,
-        1580
+        1600
       ],
       "id": "c7e41624-f3b9-40ce-a2dd-16132ed35165",
       "name": "Build Payload for GDrive and Monday.com"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2340,
+        1600
+      ],
+      "id": "9d450ea1-e6d1-4ddb-bb74-560625c80a11",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2080,
+        1600
+      ],
+      "id": "60b42cfa-d5bf-4828-8272-41a0835d39d6",
+      "name": "HTTP Request1"
     }
   ],
   "pinData": {},
@@ -796,15 +805,9 @@
             "node": "Gmail",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Webhook1": {
-      "main": [
-        [
+          },
           {
-            "node": "Build Payload for GDrive and Monday.com",
+            "node": "HTTP Request",
             "type": "main",
             "index": 0
           }
@@ -821,13 +824,40 @@
           }
         ]
       ]
+    },
+    "Gmail": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Build Payload for GDrive and Monday.com",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "89cf8cc3-0af3-45f7-8666-7b9d438859f4",
+  "versionId": "8eb9b7e6-a359-4ddd-a854-dca0c3ada58a",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "a6f30bd66fed7fcd249de9838e08b9e7b2adf65dc6cc773a40f041d31551bafa"

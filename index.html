@@ -242,7 +242,8 @@
             return {
                 tasks: params.get('tasks'),
                 title: params.get('title'),
-                webhook: params.get('webhook')
+                webhook: params.get('webhook'),
+                exec_id: params.get('exec_id')
             };
         }
 
@@ -371,9 +372,44 @@
             document.getElementById('approvedCount').textContent = approved;
         }
 
+        async function loadTasksFromServer(execId) {
+            try {
+                console.log('📡 Fetching tasks from server...');
+                const response = await fetch(`/get-tasks/${execId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load tasks: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('📦 Received data:', data);
+                
+                if (data.tasks && data.tasks.length > 0) {
+                    totalTasks = data.tasks.length;
+                    document.getElementById('totalCount').textContent = totalTasks;
+                    document.getElementById('meetingTitle').textContent = fixEncoding(data.meeting_title || 'TaskForge Meeting');
+                    
+                    tasksByMeeting = groupTasksByMeeting(data.tasks);
+                    renderMeetings();
+                    
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('content').style.display = 'block';
+                } else {
+                    throw new Error('No tasks found in server response');
+                }
+                
+            } catch (error) {
+                console.error('❌ Failed to load tasks from server:', error);
+                document.getElementById('errorMessage').textContent = `Failed to load tasks: ${error.message}`;
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+            }
+        }
+
         async function submitApprovals() {
             console.log('🚀 Starting submission process...');
             
+            const params = getUrlParams();
             const approvedTasks = [];
             
             Object.entries(tasksByMeeting).forEach(([meetingId, meeting]) => {
@@ -402,13 +438,12 @@
 
             try {
                 const payload = {
+                    execution_id: params.exec_id || `hitl_${Date.now()}`,
                     approved_tasks: approvedTasks,
                     approved_count: approvedTasks.length,
                     total_tasks: totalTasks,
                     timestamp: new Date().toISOString(),
-                    source: 'TaskForge_HITL_Dashboard',
-                    execution_id: 'hitl_' + Date.now(),
-                    session_id: 'session_' + Date.now()
+                    source: 'TaskForge_HITL_Dashboard'
                 };
 
                 console.log('📤 Submitting to server-side proxy');
@@ -420,8 +455,8 @@
                 submitBtn.textContent = '⏳ Submitting...';
                 submitBtn.disabled = true;
 
-                // Submit to our own server instead of directly to N8N
-                const response = await fetch(webhookUrl, {
+                // NEW: Submit to our own server's approval endpoint
+                const response = await fetch('/submit-approval', {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json'
@@ -432,13 +467,12 @@
                 console.log('📡 Response status:', response.status);
 
                 if (response.ok) {
-                    const responseData = await response.text();
+                    const responseData = await response.json();
                     console.log('✅ Success response:', responseData);
                     
-                    document.getElementById('content').style.display = 'none';
-                    document.getElementById('success').style.display = 'block';
+                    // Self-destruct UI
+                    document.body.innerHTML = '<div style="text-align:center;padding:50px;background:#4CAF50;color:white;"><h2>✅ Tasks Submitted!</h2><p>This link has expired and cannot be used again.</p><p>n8n will process your approved tasks shortly.</p></div>';
                     
-                    setTimeout(() => { window.close(); }, 3000);
                 } else {
                     const errorText = await response.text();
                     console.error('❌ Server error:', errorText);
@@ -470,7 +504,12 @@
                 document.getElementById('meetingTitle').textContent = fixEncoding(decodeURIComponent(params.title));
             }
 
-            if (params.tasks) {
+            // NEW: Check if we have exec_id (HTTP request approach)
+            if (params.exec_id && !params.tasks) {
+                console.log('🔄 Loading tasks from server using exec_id:', params.exec_id);
+                loadTasksFromServer(params.exec_id);
+            } else if (params.tasks) {
+                // Original method with tasks in URL
                 try {
                     const tasks = JSON.parse(decodeURIComponent(params.tasks));
                     totalTasks = tasks.length;
