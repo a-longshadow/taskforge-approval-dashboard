@@ -461,7 +461,9 @@
             const params = getUrlParams();
             
             if (params.webhook) {
-                webhookUrl = decodeURIComponent(params.webhook);
+                const raw = decodeURIComponent(params.webhook);
+                // Force production path even if someone supplied the test URL
+                webhookUrl = raw.replace('/webhook-test/', '/webhook/');
             }
             
             if (params.title) {
