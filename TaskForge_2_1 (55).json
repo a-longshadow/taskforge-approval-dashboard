@@ -1,0 +1,835 @@
+{
+  "name": "TaskForge_2.1",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "59 23 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -4500,
+        260
+      ],
+      "id": "e3738211-5309-443c-bd4f-109538874643",
+      "name": "Trigger · Daily run (23:59 UTC)",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========================================\n// FILTER NODE - Keep only NEW transcripts\n// Updated for new workflow structure with HTTP Request nodes\n// ========================================\n\nconsole.log(`🔍 FILTER NODE STARTED - Keep only NEW transcripts`);\nconsole.log(`📊 Input items count: ${items.length}`);\n\ntry {\n  // Get Google Drive search results for existing files\n  let searchResults = [];\n  try {\n    searchResults = $('Check · RAW Transcripts Duplicates').all();\n    console.log(`📋 Google Drive search results: ${searchResults.length}`);\n  } catch (e) {\n    console.log(`⚠️ Could not get search results from Check · RAW Transcripts Duplicates:`, e.message);\n    searchResults = [];\n  }\n\n  // Extract existing filenames from Google Drive\n  const existingFilenames = new Set();\n  searchResults.forEach(result => {\n    if (result.json && result.json.files && Array.isArray(result.json.files)) {\n      result.json.files.forEach(file => {\n        if (file.name) {\n          existingFilenames.add(file.name);\n          console.log(`📁 Found existing file: ${file.name}`);\n        }\n      });\n    }\n  });\n\n  console.log(`📊 Total existing files found: ${existingFilenames.size}`);\n\n  // Process input items (should be all meetings with filenames from SUPER_CODE_NODE)\n  const newMeetings = [];\n  \n  items.forEach((item, index) => {\n    try {\n      // Check if this is the Super Code output with all_meetings_with_filenames\n      if (item.json && item.json.all_meetings_with_filenames && Array.isArray(item.json.all_meetings_with_filenames)) {\n        console.log(`📝 Processing ${item.json.all_meetings_with_filenames.length} meetings from Super Code output`);\n        \n        item.json.all_meetings_with_filenames.forEach((meetingData, meetingIndex) => {\n          if (meetingData.filename) {\n            const exists = existingFilenames.has(meetingData.filename);\n            console.log(`📄 Meeting ${meetingIndex}: ${meetingData.filename} - ${exists ? 'EXISTS (skipping)' : 'NEW (adding)'}`);\n            \n            if (!exists) {\n              newMeetings.push({ json: meetingData });\n            }\n          } else {\n            console.log(`⚠️ Meeting ${meetingIndex} has no filename, skipping`);\n          }\n        });\n      } else if (item.json && item.json.filename) {\n        // Handle individual meeting items\n        const exists = existingFilenames.has(item.json.filename);\n        console.log(`📄 Individual meeting: ${item.json.filename} - ${exists ? 'EXISTS (skipping)' : 'NEW (adding)'}`);\n        \n        if (!exists) {\n          newMeetings.push(item);\n        }\n      } else {\n        console.log(`⚠️ Item ${index} has unexpected structure:`, Object.keys(item.json || {}));\n      }\n    } catch (error) {\n      console.log(`❌ Error processing item ${index}:`, error.message);\n    }\n  });\n\n  console.log(`✅ FILTER COMPLETE:`);\n  console.log(`   - Input items: ${items.length}`);\n  console.log(`   - Existing files: ${existingFilenames.size}`);\n  console.log(`   - New meetings to upload: ${newMeetings.length}`);\n\n  return newMeetings;\n\n} catch (error) {\n  console.log(`❌ FILTER NODE ERROR:`, error.message);\n  console.log(`📚 Stack trace:`, error.stack);\n  \n  // Return empty array on error to prevent workflow failure\n  return [];\n} "
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2840,
+        80
+      ],
+      "id": "81d8b746-fd6a-44aa-b828-281bd538822b",
+      "name": "Filter · Keep only NEW transcripts"
+    },
+    {
+      "parameters": {
+        "operation": "createFromText",
+        "content": "={{ JSON.stringify($json, null, 2) }}",
+        "name": "={{ $json.filename }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1WYaF58QGAnDIMIXLmhuRKqw0Qjof8iSe",
+          "mode": "list",
+          "cachedResultName": "RAW_TRANSCRIPTS",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1WYaF58QGAnDIMIXLmhuRKqw0Qjof8iSe"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1820,
+        80
+      ],
+      "id": "2d0db476-692e-4f52-8286-ad50c0babc99",
+      "name": "Load · Upload raw transcript JSON",
+      "retryOnFail": false,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ej5HKdNlZWQiddEH",
+          "name": "Google Drive account 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-preview-05-20",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -3080,
+        680
+      ],
+      "id": "1c3a4853-4521-4b72-ab46-65f52937b988",
+      "name": "Transform · LLM model (Gemini 2.5)",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "G2qzH1zqSv7JmOPg",
+          "name": "Google Gemini(PaLM) Api "
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "===== System ===\nYou are TaskForge, an expert AI assistant. Your sole purpose is to meticulously extract discrete to‑do items from meeting data.\nYou MUST output only a JSON array of task objects. Do not include any introductory text, markdown, backticks, or commentary outside the JSON array.\n\nEach task object in the array **MUST** have exactly these fields:\n- task_item (string)\n- assignee_emails (string)\n- assignee(s)_full_names (string) e.g. Joe Maina or Andrew Hero, John Doe\n- priority (string: \"High\", \"Medium\", or \"Low\")\n- brief_description (string)\n- date_expected (string: Monday.com date format \"YYYY-MM-DD\")\n\n**Additional Requirements:**\n\n0. **Transcript‑Sanitisation (Fireflies remediation)**  \n   - Before extracting tasks, perform a one‑pass cleanup on every transcript sentence.  \n   - Standardise spacing, remove obvious filler tokens (\"uh,\" \"you know,\" \"right?\") and correct blatant mis‑spellings.  \n   - **Critically, normalise name spellings for these five primary participants—strict, case‑insensitive, fuzzy‑matched:**  \n     • Andrew Hemingway  \n     • Levi Rybalov  \n     • Vardhan Shorewala  \n     • Yang Zheng  \n     • Joe Maina  \n   - If any variant (e.g., \"Levy Ribalov,\" \"Vardan Shorewalla\") is detected, replace it with the canonical form above **before** all downstream logic.  \n   - For all other names, best‑effort correction is acceptable but not mandatory.\n\n1. **Multi‑Assignee Detection:**  \n   - If an action item clearly involves more than one person (e.g., \"Alice and Bob will…\"), include all their emails in `assignee_emails` (comma‑separated) and all their names in `assignee(s)_full_names`.  \n\n2. **Account Deduplication:**  \n   - If a participant appears under multiple accounts (invitee vs. speaker), choose one canonical name/email mapping and do not repeat them.  \n\n3. **Verbatim Task Text:**  \n   - `task_item` and `brief_description` must match the transcript's wording exactly (aside from minimal grammar adjustments). Cite the speaker and timestamp in parentheses after each task description. Avoid any purely generative re‑phrasing except to correct grammar or to meet word‑count limits.\n\n4. **Inference Rules (apply in this order):**  \n   4.1 **Primary source – \"Explicitly Listed Action Items.\"**  \n   4.2 **Assignee inference –**  \n        • Scan the Full Transcript for patterns like \"X will…,\" \"Let's have X…,\" or \"Can you X…?\"  \n        • Map X's first or last name to the Attendees list (displayName → email).  \n        • If a match is found, fill `assignee_emails`; only use null if no name match appears anywhere.  \n        • Normally, the host issues tasks to the attendees.  \n   4.3 **Date‑Expected Calculation Logic (NEW):**  \n        • Scrape for explicit phrases (\"May 16,\" \"next Friday,\" \"by EOD tomorrow,\" \"within a week\").  \n        • Convert explicit or relative references to a millisecond timestamp **internally** (UTC).  \n        • If no temporal clue exists, infer a date using best‑practice business heuristics:  \n          – High‑priority & short phrases like \"ASAP,\" \"soon,\" \"immediately\" ⇒ tomorrow EOD.  \n          – \"Next week\" ⇒ first business day of next week, 09:00 local time.  \n          – \"After the meeting\" ⇒ current day, 17:00 local time.  \n          – Anything ambiguous defaults to five business days after meeting date, 17:00 local time.  \n        • Convert this inferred date to Monday.com format (YYYY-MM-DD) and include it in the `date_expected` field.  \n   4.4 **Priority inference –**  \n        • Urgent or time‑bound tasks ⇒ \"High.\"  \n        • Strategic or multi‑day tasks ⇒ \"Medium.\"  \n        • Informational or low‑stakes tasks ⇒ \"Low.\"  \n   4.5 **Status inference –**  \n        • Acceptable tags: \"To Do\", \"Stuck\", \"Working on it\", \"Waiting for review\", \"Approved\", \"Done\".  \n        • Use transcript cues (\"we've already done X\" ⇒ \"Done\"; \"I'm working on X\" ⇒ \"Working on it\").  \n        • Default to \"To Do\" only if no other status is indicated.  \n\n5. **Brief description:**  \n   - Must be at least 30 words and maximum 50 words.  \n   - Must expand on the `task_item` with context (why the task exists, how it will be done, with whom), explicitly stating **who assigned** the task and **to whom** it was given.  \n   - Should incorporate timeline cues (e.g., \"next week,\" \"after the meeting,\" \"by end of day tomorrow\") in natural phrasing.\n\n6. **Count consistency:**  \n   - Output as many tasks as there are explicit ({{ $json.summary.action_items }} ± 2).  \n   - Only add truly new tasks found in transcript if they're critical and non‑duplicate.\n\n7. **Fallback:**  \n   - If no tasks are identifiable, return `[]`.\n\n=== User ===\nProcess only the following meeting data to extract tasks:\n\nMeeting Title: {{ $json.title }}  \nMeeting Date (ms): {{ $json.date }}  \nOrganizer Email: {{ $json.organizer_email }}  \n\nAttendees (name ↔ email):  \n{{ $json.meeting_attendees.map(a => `- ${a.displayName} <${a.email}>`).join(\"\\n\") }}\n\nExplicitly Listed Action Items:  \n{{ $json.summary.action_items }}\n\nMeeting Overview:  \n{{ $json.summary.overview }}\n\nFull Transcript:  \n{{ $json.sentences.map(s => `${s.speaker_name}: ${s.text}`).join(\"\\n\") }}\n\nReturn ONLY a JSON array of tasks as described above.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -3020,
+        480
+      ],
+      "id": "42851e2b-e634-4a07-b937-c39d4fb4b7f6",
+      "name": "Transform · AI Agent – extract/verify action items"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform · Parse tasks → Monday schema\n// FIXED: Now preserves meeting context and groups tasks properly\n\ntry {\n  console.log('🔄 Processing AI Agent outputs with meeting context preservation...');\n  \n  const allExtractedTasks = [];\n  const meetingContextMap = new Map(); // Track meeting contexts\n  \n  for (const currentItem of items) {\n    if (!currentItem.json || typeof currentItem.json.output !== 'string') {\n      console.warn(\"An input item is not in expected format. Skipping.\", currentItem);\n      continue;\n    }\n\n    // Extract meeting context from the AI input\n    // The AI Agent receives meeting data, we need to preserve it\n    const meetingContext = {\n      title: currentItem.json.title || 'Unknown Meeting',\n      date: currentItem.json.date || new Date().toISOString(),\n      organizer: currentItem.json.organizer_email || 'Unknown',\n      id: currentItem.json.id || `meeting_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`\n    };\n\n    const fencedOutput = currentItem.json.output;\n    let cleanedJsonText = fencedOutput;\n\n    // Clean the AI output\n    if (cleanedJsonText.startsWith(\"```json\")) {\n      cleanedJsonText = cleanedJsonText.substring(7);\n    } else if (cleanedJsonText.startsWith(\"```\")) {\n      cleanedJsonText = cleanedJsonText.substring(3);\n    }\n    if (cleanedJsonText.endsWith(\"```\")) {\n      cleanedJsonText = cleanedJsonText.substring(0, cleanedJsonText.length - 3);\n    }\n    cleanedJsonText = cleanedJsonText.trim();\n\n    let tasksInThisMeeting;\n    try {\n      tasksInThisMeeting = JSON.parse(cleanedJsonText);\n      if (!Array.isArray(tasksInThisMeeting)) {\n        if (tasksInThisMeeting && typeof tasksInThisMeeting === 'object') {\n          console.warn(\"Parsed AI output was a single object, wrapping in array\");\n          tasksInThisMeeting = [tasksInThisMeeting];\n        } else {\n          console.error(\"Invalid AI output format:\", cleanedJsonText);\n          continue;\n        }\n      }\n    } catch (error) {\n      console.error(`Failed to parse AI output: ${error.message}`);\n      continue;\n    }\n\n    // Store meeting context\n    meetingContextMap.set(meetingContext.id, meetingContext);\n\n    // Add meeting context to each task\n    tasksInThisMeeting.forEach((task, taskIndex) => {\n      const enrichedTask = {\n        ...task,\n        // Meeting context for grouping\n        meeting_id: meetingContext.id,\n        meeting_title: meetingContext.title,\n        meeting_date: meetingContext.date,\n        meeting_organizer: meetingContext.organizer,\n        \n        // Task metadata\n        task_index: taskIndex,\n        total_tasks_in_meeting: tasksInThisMeeting.length,\n        \n        // Ensure all required fields exist\n        task_item: task.task_item || 'Untitled Task',\n        'assignee(s)_full_names': task['assignee(s)_full_names'] || task.assignee_full_names || 'Unknown',\n        assignee_emails: task.assignee_emails || 'unknown@example.com',\n        priority: task.priority || 'Medium',\n        brief_description: task.brief_description || task.task_item || 'No description provided',\n        date_expected: task.date_expected || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]\n      };\n      \n      allExtractedTasks.push({ json: enrichedTask });\n    });\n  }\n\n  console.log(`✅ Processed ${allExtractedTasks.length} tasks from ${meetingContextMap.size} meetings`);\n  console.log(`📋 Meeting contexts:`, Array.from(meetingContextMap.values()).map(m => `${m.title} (${m.id})`));\n  \n  return allExtractedTasks;\n  \n} catch (error) {\n  console.error('❌ Error in Transform node:', error.message);\n  return [{\n    json: {\n      error: error.message,\n      status: 'error',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2580,
+        580
+      ],
+      "id": "123c79be-6170-4eff-9a5e-9fb416e41836",
+      "name": "Transform · Parse tasks → Monday schema"
+    },
+    {
+      "parameters": {
+        "resource": "boardItem",
+        "boardId": "9212659997",
+        "groupId": "group_mkqyryrz",
+        "name": "={{ $json.task_item }}",
+        "additionalFields": {
+          "columnValues": "={{\n  JSON.stringify({\n    \"text_mkr7jgkp\": $json[\"assignee(s)_full_names\"],\n    \"text_mkr0hqsb\": $json.assignee_emails ,\n    \"status_1\":      $json.priority,\n    \"long_text\":     $json.brief_description,\n    \"date_mkr7ymmh\": $json.date_expected\n  })\n}}\n\n\n\n"
+        }
+      },
+      "type": "n8n-nodes-base.mondayCom",
+      "typeVersion": 1,
+      "position": [
+        -1940,
+        460
+      ],
+      "id": "b47e63d8-1a69-4823-acbd-2f9d9713cd9e",
+      "name": "Load · Create tasks on Monday board",
+      "credentials": {
+        "mondayComApi": {
+          "id": "nBaakSxa79tEuokY",
+          "name": "Monday.com  - CoopHive"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for no-meetings scenario FIRST\nconst meetings = $('Parse & Generate Filenames').all();\nconst isNoMeetingsDay = meetings.length === 1 && meetings[0]?.json?._workflow_status === 'no_meetings_today';\n\nif (isNoMeetingsDay) {\n  const noMeetingsReport = {\n    timestamp: new Date().toLocaleString(),\n    execution_id: $execution.id,\n    summary: {\n      meetings_fetched: 0,\n      total_monday_tasks: 0,\n      action_files_created: 0,\n      transcript_files_created: 0,\n      duplicates_skipped: 0,\n      status: 'SUCCESS_NO_MEETINGS'\n    },\n    meetingDetails: [],\n    files: [],\n    report_email: `\n<h2>TASKFORGE DAILY REPORT</h2>\n<hr/>\n<h3>NO MEETINGS TODAY</h3>\n<p>✅ <strong>Status:</strong> Workflow completed successfully</p>\n<p>📅 <strong>Date:</strong> ${new Date().toLocaleDateString()}</p>\n<p>🕐 <strong>Completed:</strong> ${new Date().toLocaleString()}</p>\n<p>🆔 <strong>Execution ID:</strong> ${$execution.id}</p>\n\n<p>ℹ️ No meetings were found for today's date range. This is normal and indicates the system is working correctly.</p>\n\n<h3>NEXT STEPS</h3>\n<ul>\n<li>The workflow will run again tomorrow at 23:59 UTC</li>\n<li>Any meetings scheduled for tomorrow will be processed automatically</li>\n</ul>\n\n<hr/>\n<em>Report generated automatically by TaskForge.</em>\n    `,\n    report_telegram: [\n      '✅ *TASKFORGE DAILY REPORT*',\n      '───',\n      `🕐 *Completed* : ${new Date().toLocaleString()}`,\n      `🆔 *Execution* : ${$execution.id}`,\n      '',\n      '📋 *NO MEETINGS TODAY*',\n      '✅ Workflow completed successfully',\n      '📅 All systems operational',\n      '',\n      '🔄 Next run: Tomorrow at 23:59 UTC',\n      '🏁 Standing by for tomorrow\\'s meetings.'\n    ].join('\\n')\n  };\n  \n  return [{ json: noMeetingsReport }];\n}\n\n// NORMAL PROCESSING (when meetings exist)\ntry {\n  const mondayTasks = $('Transform · Parse tasks → Monday schema').all();\n  const actionDocs = $('Transform · Build ACTION_ITEMS.json').all();\n  const transcriptFiles = $('Filter · Keep only NEW transcripts').all();\n\n  const summary = {\n    meetings_fetched: meetings.length,\n    total_monday_tasks: mondayTasks.length,\n    action_files_created: actionDocs.length,\n    transcript_files_created: transcriptFiles.length,\n    duplicates_skipped: meetings.length - transcriptFiles.length,\n  };\n\n  const tasksByMeetingId = {};\n  actionDocs.forEach(d => { tasksByMeetingId[d.json.meeting_id] = d.json.total_tasks || 0; });\n\n  const meetingDetails = meetings.map(m => ({\n    title: m.json.title || 'Untitled Meeting',\n    organizer: m.json.organizer_email || 'Unknown',\n    date: new Date(m.json.date).toLocaleDateString(),\n    duration: m.json.duration ? `${Math.round(m.json.duration/60)} min` : 'N/A',\n    tasks_extracted: tasksByMeetingId[m.json.id] || 0,\n    status: (tasksByMeetingId[m.json.id] || 0) > 0 ? 'Processed' : 'Skipped (duplicate)',\n  }));\n\n  const files = [\n    ...actionDocs.map(f => `${f.json.filename.replace('_ACTION_ITEMS.json','')} → ${f.json.total_tasks} tasks`),\n    ...transcriptFiles.map(f => `${f.json.filename.replace('.json','')} → ${Math.round(f.json.duration/60)} min`)\n  ];\n\n  const report_telegram = [\n    '✅ *TASKFORGE PIPELINE – SUCCESS*',\n    '───',\n    `🕐 *Completed* : ${new Date().toLocaleString()}`,\n    `🆔 *Execution* : ${$execution.id}`,\n    '',\n    `📋 *Meetings* : ${summary.meetings_fetched}`,\n    `✅ *Tasks→Monday* : ${summary.total_monday_tasks}`,\n    `📁 *Action files* : ${summary.action_files_created}`,\n    `🗒️ *Transcripts* : ${summary.transcript_files_created}`,\n    `🚫 *Duplicates* : ${summary.duplicates_skipped}`,\n    '',\n    '🗂️ *MEETINGS*',\n    meetingDetails.length\n      ? meetingDetails.map(m =>\n          `• *${m.title}* | ${m.tasks_extracted} task(s) | ${m.status}`\n        ).join('\\n')\n      : '• none',\n    '',\n    '🏁 Pipeline finished successfully.'\n  ].join('\\n');\n\n  const htmlMeetings = meetingDetails.map(m => (\n  `• <strong>${m.title}</strong><br/>\n  &nbsp;&nbsp;Date&nbsp;:&nbsp;${m.date} (${m.duration})<br/>\n  &nbsp;&nbsp;Organizer&nbsp;:&nbsp;${m.organizer}<br/>\n  &nbsp;&nbsp;Tasks&nbsp;:&nbsp;${m.tasks_extracted}<br/>\n  &nbsp;&nbsp;Status&nbsp;:&nbsp;${m.status}`\n  )).join('<br/><br/>');\n\n  const report_email = `\n<h2 style=\"margin:0;\">TASKFORGE PIPELINE – EXECUTION SUMMARY</h2>\n<hr/>\n<h3>RUN DETAILS</h3>\n<table style=\"font-family:monospace; font-size:13px;\">\n<tr><td>Completed&nbsp;:</td><td>${new Date().toLocaleString()}</td></tr>\n<tr><td>Execution&nbsp;ID&nbsp;:</td><td>${$execution.id}</td></tr>\n<tr><td>Meetings&nbsp;Fetched&nbsp;:</td><td>${summary.meetings_fetched}</td></tr>\n<tr><td>Tasks&nbsp;→ Monday&nbsp;:</td><td>${summary.total_monday_tasks}</td></tr>\n<tr><td>Action&nbsp;Files&nbsp;:</td><td>${summary.action_files_created}</td></tr>\n<tr><td>Transcript&nbsp;Files&nbsp;:</td><td>${summary.transcript_files_created}</td></tr>\n<tr><td>Duplicates&nbsp;Skipped&nbsp;:</td><td>${summary.duplicates_skipped}</td></tr>\n</table>\n\n<h3>MEETING BREAKDOWN</h3>\n<pre style=\"font-family:monospace; font-size:13px;\">${htmlMeetings}</pre>\n\n<hr/>\n<em>All pipeline stages completed successfully. Report generated automatically by TaskForge.</em>\n`;\n\n  return [{\n    json: {\n      timestamp: new Date().toLocaleString(),\n      execution_id: $execution.id,\n      summary,\n      meetingDetails,\n      files,\n      report_email,\n      report_telegram\n    }\n  }];\n  \n} catch (error) {\n  // Fallback error report if something goes wrong\n  return [{\n    json: {\n      timestamp: new Date().toLocaleString(),\n      execution_id: $execution.id,\n      summary: { status: 'PARTIAL_SUCCESS_WITH_ERRORS' },\n      report_email: `<h2>TASKFORGE REPORT</h2><p>⚠️ Completed with some errors: ${error.message}</p>`,\n      report_telegram: `⚠️ *TASKFORGE COMPLETED WITH ERRORS*\\n\\n${error.message}`\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1160,
+        560
+      ],
+      "id": "4200383e-006e-46cf-aa46-868253a57bec",
+      "name": "Report · Build success summary"
+    },
+    {
+      "parameters": {
+        "sendTo": "levi@coophive.network",
+        "subject": "🎉 TASKFORGE SUCCESS REPORT",
+        "message": "=={{ $json.report_email }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -140,
+        780
+      ],
+      "id": "076a8aa0-1ee9-4183-a12e-cfa23848c58d",
+      "name": "Report · Email success summary",
+      "webhookId": "ec855212-04f7-416d-8cb6-975679a4b2a7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "zY122nsAQ7cXt7Yh",
+          "name": "Gmail account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "chatId": "6599177006",
+        "text": "=={{ $json.report_telegram }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -140,
+        520
+      ],
+      "id": "ca78e2cc-2884-4537-90fe-29ce18addb68",
+      "name": "Report · Telegram success summary (opt-out)",
+      "webhookId": "c584d153-3f7d-49e7-bf7c-f03207673624",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "jZqOptnRbmDRtkqR",
+          "name": "Telegram - test"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// COMPREHENSIVE ERROR MANAGER - Enhanced for No-Meetings Detection\nconst errorData = items[0]?.json || {};\nconst executionId = $execution.id;\nconst startTime = $execution.startedAt;\nconst currentTime = new Date();\nconst runtime = startTime ? Math.round((currentTime - new Date(startTime)) / 1000) : 0;\n\n// DETECT NO-MEETINGS SCENARIO FIRST\nconst isNoMeetingsScenario = errorData._workflow_status === 'no_meetings_today';\n\nif (isNoMeetingsScenario) {\n  // Generate AMBER informational alert for no meetings\n  const noMeetingsAlert = {\n    timestamp: currentTime.toLocaleString(),\n    execution_id: executionId,\n    runtime: `${runtime}s`,\n    progress: '100%',\n    stage: 'complete',\n    severity: 'INFO',\n    \n    error_analysis: {\n      type: 'NO_MEETINGS_TODAY',\n      root_cause: 'No meetings scheduled or found for today\\'s date range',\n      auto_recovery: '✅ Automatic (tomorrow)',\n      recovery_time: '24 hours',\n      escalation: 'None - Normal Operation'\n    },\n    \n    pipeline_status: {\n      successful_stages: [\n        { name: 'Extract Fireflies', count: 1 },\n        { name: 'Filter Today\\'s Meetings', count: 0 }\n      ],\n      failed_operations: [],\n      last_success: 'datafetch'\n    },\n    \n    recovery_actions: {\n      immediate: [\n        \"✅ No action required - this is normal operation\",\n        \"📅 Workflow will run again tomorrow at 23:59 UTC\",\n        \"🔍 Check calendar for tomorrow's meetings\"\n      ],\n      preventive: [\n        \"📊 Monitor meeting scheduling patterns\",\n        \"🔔 Set up calendar alerts for important meetings\"\n      ],\n      escalation: []\n    },\n    \n    debug_info: {\n      sample: `Date checked: ${errorData._date_checked}, Status: Normal operation`,\n      original_error: errorData._message || 'No meetings found for today',\n      input_data: 'No meetings found in today\\'s date range',\n      confidence: 'high'\n    },\n    \n    quick_links: {\n      execution: `https://app.n8n.cloud/workflow/JCy1fQ7YPDZMkpYK/executions/${executionId}`,\n      monday_status: 'https://status.monday.com/',\n      monday_board: 'https://coophive.monday.com/boards/9212659997',\n      fireflies_status: 'https://status.fireflies.ai/'\n    },\n    \n    // Special fields for no-meetings telegram formatting\n    telegram_message: `🟡 *TASKFORGE DAILY STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nℹ️ **INFORMATIONAL NOTICE**\n┌─ 🕐 Checked At: ${currentTime.toLocaleString()}\n├─ 🆔 Execution: ${executionId}\n├─ ⏱️ Runtime: ${runtime}s\n├─ 📊 Progress: 100%\n├─ 🎯 Stage: complete\n└─ 🟡 Status: NORMAL OPERATION\n\n📋 **SUMMARY**\n├─ 📅 Date Checked: ${errorData._date_checked}\n├─ 🔍 Meetings Found: 0\n├─ ✅ System Status: Operational\n├─ 🔄 Next Check: Tomorrow 23:59 UTC\n└─ 📊 Result: Expected behavior\n\n🎯 **NO ACTION REQUIRED**\n├─ ✅ This is normal daily operation\n├─ 📅 No meetings were scheduled for today\n├─ 🔄 Workflow will resume tomorrow automatically\n└─ 📊 All systems functioning correctly\n\n🔗 **QUICK LINKS**\n├─ 📊 [Execution](https://app.n8n.cloud/workflow/JCy1fQ7YPDZMkpYK/executions/${executionId})\n├─ 📋 [Monday Board](https://coophive.monday.com/boards/9212659997)\n└─ 📅 [Calendar](https://calendar.google.com)\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nℹ️ Informational notice - no action needed`\n  };\n  \n  return [{ json: noMeetingsAlert }];\n}\n\n// EXISTING ERROR HANDLING CODE (for actual errors)\nconst errorMessage = errorData.message || errorData.error || 'Unknown error';\n\n// ENHANCED ERROR CLASSIFICATION\nfunction classifyError(errorMsg, errorData) {\n    const msg = (errorMsg || '').toLowerCase();\n    \n    if (msg.includes('json parameter needs to be valid json')) {\n        return {\n            type: 'JSON_PARSING_ERROR',\n            cause: 'Malformed JSON structure in API request',\n            severity: 'HIGH',\n            recovery_time: '2-5 minutes',\n            escalation: 'Level 2 - Technical',\n            auto_recovery: false\n        };\n    }\n    \n    if (msg.includes('invalid syntax')) {\n        return {\n            type: 'SYNTAX_ERROR',\n            cause: 'Field name or data structure mismatch',\n            severity: 'MEDIUM',\n            recovery_time: '5-10 minutes',\n            escalation: 'Level 1 - Standard',\n            auto_recovery: false\n        };\n    }\n    \n    if (msg.includes('bad request') || msg.includes('400')) {\n        return {\n            type: 'API_REQUEST_ERROR',\n            cause: 'Invalid parameters or authentication',\n            severity: 'HIGH',\n            recovery_time: '1-3 minutes',\n            escalation: 'Level 2 - Technical',\n            auto_recovery: false\n        };\n    }\n    \n    if (msg.includes('unauthorized') || msg.includes('401')) {\n        return {\n            type: 'AUTHENTICATION_ERROR',\n            cause: 'Invalid or expired API credentials',\n            severity: 'CRITICAL',\n            recovery_time: '10-30 minutes',\n            escalation: 'Level 3 - Security',\n            auto_recovery: false\n        };\n    }\n    \n    if (msg.includes('rate limit') || msg.includes('429')) {\n        return {\n            type: 'RATE_LIMIT_ERROR',\n            cause: 'API rate limit exceeded',\n            severity: 'LOW',\n            recovery_time: '1-5 minutes',\n            escalation: 'Level 1 - Standard',\n            auto_recovery: true\n        };\n    }\n    \n    return {\n        type: 'UNKNOWN_ERROR',\n        cause: 'Unclassified system error',\n        severity: 'MEDIUM',\n        recovery_time: '5-15 minutes',\n        escalation: 'Level 1 - Standard',\n        auto_recovery: false\n    };\n}\n\n// PIPELINE STAGE DETECTION\nfunction detectFailedStage(errorData, nodeProbes) {\n    const stages = [\n        { name: 'datafetch', threshold: 0 },\n        { name: 'dataparse', threshold: 1 },\n        { name: 'aiprocess', threshold: 2 },\n        { name: 'taskparse', threshold: 3 },\n        { name: 'actionitems', threshold: 4 },\n        { name: 'taskcreation', threshold: 5 }\n    ];\n    \n    let successfulStages = 0;\n    let lastSuccessfulStage = 'none';\n    \n    for (let i = 0; i < nodeProbes.length; i++) {\n        if (nodeProbes[i].success && nodeProbes[i].count > 0) {\n            successfulStages = i + 1;\n            lastSuccessfulStage = nodeProbes[i].stage;\n        } else {\n            break;\n        }\n    }\n    \n    const progress = Math.round((successfulStages / nodeProbes.length) * 100);\n    const currentStage = successfulStages < nodeProbes.length ? \n        stages[successfulStages]?.name || 'unknown' : 'complete';\n    \n    return { progress, currentStage, lastSuccessfulStage };\n}\n\n// RECOVERY ACTIONS GENERATOR\nfunction generateRecoveryActions(errorClass, stageInfo, nodeProbes) {\n    const actions = {\n        immediate: [\n            \"🔍 Check n8n execution logs for details\",\n            \"🔄 Retry workflow manually\",\n            \"📊 Verify all API services are operational\",\n            \"👤 Review recent configuration changes\"\n        ],\n        preventive: [],\n        escalation: []\n    };\n    \n    return actions;\n}\n\n// DIAGNOSTIC CONTEXT GATHERING\nconst nodeProbes = [\n    { \n        name: 'HTTP Request1', \n        stage: 'datafetch',\n        probe: () => {\n            try {\n                const data = $('Extract · Extract_Header_Only_Request').all();\n                return { success: true, count: data.length, data: data.slice(0, 1) };\n            } catch (e) {\n                return { success: false, count: 0, error: e.message };\n            }\n        }\n    }\n];\n\n// Execute all probes\nconst probeResults = nodeProbes.map(probe => ({\n    ...probe,\n    ...probe.probe()\n}));\n\n// Analyze error and context\nconst errorClass = classifyError(errorMessage, errorData);\nconst stageInfo = detectFailedStage(errorData, probeResults);\nconst recoveryActions = generateRecoveryActions(errorClass, stageInfo, probeResults);\n\n// Extract debug information\nconst debugData = {\n    sample: JSON.stringify(errorData, null, 2).substring(0, 300) + '...',\n    original_error: errorMessage,\n    input_data: errorData.input ? JSON.stringify(errorData.input, null, 2).substring(0, 200) + '...' : 'No input data',\n    confidence: errorClass.type !== 'UNKNOWN_ERROR' ? 'high' : 'low'\n};\n\n// Build comprehensive error report\nconst errorReport = {\n    timestamp: currentTime.toLocaleString(),\n    execution_id: executionId,\n    runtime: `${runtime}s`,\n    progress: `${stageInfo.progress}%`,\n    stage: stageInfo.currentStage,\n    severity: errorClass.severity,\n    \n    error_analysis: {\n        type: errorClass.type,\n        root_cause: errorClass.cause,\n        auto_recovery: errorClass.auto_recovery ? '✅ Automatic' : '❌ Manual Required',\n        recovery_time: errorClass.recovery_time,\n        escalation: errorClass.escalation\n    },\n    \n    pipeline_status: {\n        successful_stages: probeResults.filter(p => p.success),\n        failed_operations: probeResults.filter(p => !p.success).map(p => `${p.name}: ${p.stage}`),\n        last_success: stageInfo.lastSuccessfulStage\n    },\n    \n    recovery_actions: recoveryActions,\n    \n    debug_info: debugData,\n    \n    quick_links: {\n        execution: `https://app.n8n.cloud/workflow/JCy1fQ7YPDZMkpYK/executions/${executionId}`,\n        monday_status: 'https://status.monday.com/',\n        monday_board: 'https://coophive.monday.com/boards/9212659997',\n        fireflies_status: 'https://status.fireflies.ai/'\n    }\n};\n\nreturn [{ json: errorReport }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1160,
+        280
+      ],
+      "id": "871f2fe5-513c-41f3-9599-2eb8acd832d8",
+      "name": "Error-Mgr · Build structured error report"
+    },
+    {
+      "parameters": {
+        "sendTo": "levi@coophive.network",
+        "subject": "🚨 TASKFORGE ERROR ALERT",
+        "message": "=<h2 style=\"margin:0; padding:0;\">TASKFORGE SYSTEM ALERT</h2>\n<hr/>\n\n<h3 style=\"margin-bottom:4px;\">INCIDENT SUMMARY</h3>\n<table style=\"font-family:monospace; font-size:13px;\">\n  <tr><td>Failed&nbsp;At&nbsp;:</td><td>{{ $json.timestamp }}</td></tr>\n  <tr><td>Execution&nbsp;ID&nbsp;:</td><td>{{ $json.execution_id }}</td></tr>\n  <tr><td>Runtime&nbsp;:</td><td>{{ $json.runtime }}</td></tr>\n  <tr><td>Progress&nbsp;:</td><td>{{ $json.progress }}</td></tr>\n  <tr><td>Stage&nbsp;:</td><td>{{ $json.stage }}</td></tr>\n  <tr><td>Severity&nbsp;:</td><td>{{ $json.severity }}</td></tr>\n</table>\n\n<h3 style=\"margin-bottom:4px;\">ERROR ANALYSIS</h3>\n<table style=\"font-family:monospace; font-size:13px;\">\n  <tr><td>Type&nbsp;:</td><td>{{ $json.error_analysis.type }}</td></tr>\n  <tr><td>Root Cause&nbsp;:</td><td>{{ $json.error_analysis.root_cause }}</td></tr>\n  <tr><td>Auto-Recovery&nbsp;:</td><td>{{ $json.error_analysis.auto_recovery }}</td></tr>\n  <tr><td>Recovery Time&nbsp;:</td><td>{{ $json.error_analysis.recovery_time }}</td></tr>\n  <tr><td>Escalation&nbsp;:</td><td>{{ $json.error_analysis.escalation }}</td></tr>\n</table>\n\n<h3 style=\"margin-bottom:4px;\">PIPELINE STATUS</h3>\n<strong>Successful Stages</strong><br/>\n<pre style=\"margin-top:0;\">{{ $json.pipeline_status.successful_stages.map(s => `• ${s.name}: ${s.count} items`).join('\\n') }}</pre>\n\n{{ $json.pipeline_status.failed_operations.length > 0\n  ? `<strong>Failed Operations</strong><br/><pre style=\"margin-top:0;\">` +\n    $json.pipeline_status.failed_operations.map(f => `• ${f}`).join('\\n') +\n    `</pre>`\n  : '' }}\n\nLast Success Stage: <strong>{{ $json.pipeline_status.last_success }}</strong>\n\n<h3 style=\"margin-bottom:4px;\">RECOVERY ACTIONS</h3>\n<strong>Immediate</strong><br/>\n<pre style=\"margin-top:0;\">{{ $json.recovery_actions.immediate.map(a => `• ${a}`).join('\\n') }}</pre>\n\n{{ $json.recovery_actions.preventive && $json.recovery_actions.preventive.length > 0\n  ? `<strong>Preventive</strong><br/><pre style=\"margin-top:0;\">` +\n    $json.recovery_actions.preventive.map(p => `• ${p}`).join('\\n') +\n    `</pre>`\n  : '' }}\n\n{{ $json.recovery_actions.escalation && $json.recovery_actions.escalation.length > 0\n  ? `<strong>Escalation</strong><br/><pre style=\"margin-top:0;\">` +\n    $json.recovery_actions.escalation.map(e => `• ${e}`).join('\\n') +\n    `</pre>`\n  : '' }}\n\n<h3 style=\"margin-bottom:4px;\">DIAGNOSTIC DATA</h3>\n<pre style=\"font-size:12px; white-space:pre-wrap; margin-top:0;\">\nSample : {{ $json.debug_info.sample }}\nOriginal: {{ $json.debug_info.original_error }}\nInput   : {{ $json.debug_info.input_data }}\nConfidence: {{ $json.debug_info.confidence }}\n</pre>\n\n<h3 style=\"margin-bottom:4px;\">SYSTEM LINKS</h3>\n<ul style=\"margin-top:0;\">\n  <li><a href=\"{{ $json.quick_links.execution }}\">Execution Details</a></li>\n  <li><a href=\"{{ $json.quick_links.monday_status }}\">Monday.com Status</a></li>\n  <li><a href=\"{{ $json.quick_links.monday_board }}\">Monday.com Board</a></li>\n  <li><a href=\"{{ $json.quick_links.fireflies_status }}\">Fireflies Status</a></li>\n</ul>\n\n<hr/>\n<em>Human intervention required.  Report generated automatically by TaskForge.</em>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -140,
+        0
+      ],
+      "id": "014ff022-6d34-4783-98c9-ec3a3da0e23b",
+      "name": "Error · Email failure alert",
+      "webhookId": "ec855212-04f7-416d-8cb6-975679a4b2a7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "zY122nsAQ7cXt7Yh",
+          "name": "Gmail account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "chatId": "6599177006",
+        "text": "={{ $json.telegram_message ? $json.telegram_message : \"🚨 TASKFORGE ERROR ALERT\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n\\n⚠️ FAILURE SUMMARY\\n┌─ 🕐 Failed At: \" + $json.timestamp + \"\\n├─ 🆔 Execution: \" + $json.execution_id + \"\\n├─ ⏱️ Runtime: \" + $json.runtime + \"\\n├─ 📊 Progress: \" + $json.progress + \"\\n├─ 🎯 Stage: \" + $json.stage + \"\\n└─ 🔥 Severity: \" + $json.severity + \"\\n\\n🔍 ERROR ANALYSIS\\n├─ 📝 Type: \" + $json.error_analysis.type + \"\\n├─ 🎯 Root Cause: \" + $json.error_analysis.root_cause + \"\\n├─ 🔄 Auto-Recovery: \" + $json.error_analysis.auto_recovery + \"\\n├─ ⏱️ Recovery Time: \" + $json.error_analysis.recovery_time + \"\\n└─ 🚨 Escalation: \" + $json.error_analysis.escalation + \"\\n\\n📊 PIPELINE STATUS\\n├─ ✅ Successful Stages: \" + $json.pipeline_status.successful_stages.length + \"\\n├─ ❌ Failed Operations: \" + $json.pipeline_status.failed_operations.length + \"\\n└─ 🎯 Last Success: \" + $json.pipeline_status.last_success + \"\\n\\n🛠️ RECOVERY ACTIONS\\n├─ 🚀 Check execution logs\\n├─ 🔄 Retry workflow manually\\n├─ 📊 Verify API services\\n└─ 👤 Review configuration\\n\\n🔗 QUICK LINKS\\n├─ 📊 Execution: \" + $json.quick_links.execution + \"\\n├─ 📋 Monday Board: \" + $json.quick_links.monday_board + \"\\n\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n🆘 Human intervention required\" }}",
+        "replyMarkup": "inlineKeyboard",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -140,
+        260
+      ],
+      "id": "25baf47b-d8fe-4cc1-8516-bc0156bc2106",
+      "name": "Error · Telegram failure alert",
+      "webhookId": "c584d153-3f7d-49e7-bf7c-f03207673624",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "jZqOptnRbmDRtkqR",
+          "name": "Telegram - test"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "🔵 EXTRACT Section",
+        "height": 980,
+        "width": 900,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4580,
+        -140
+      ],
+      "id": "323b64e9-817b-4fe9-bd04-1212f7058802",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "🟣 TRANSFORM Section",
+        "height": 1120,
+        "width": 880,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3240,
+        -180
+      ],
+      "id": "520859a7-46d0-43d7-9c06-2ba0500c9e38",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "🟢 LOAD Section",
+        "height": 1080,
+        "width": 1260,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2140,
+        -100
+      ],
+      "id": "69121cdc-0f44-4d74-9dbb-c75e739eb4df",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "🟡 REPORT Section ",
+        "height": 1160,
+        "width": 360,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -60
+      ],
+      "id": "19fdf7d9-038a-4904-960f-ba1b3c6589f2",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "🔴HITL Section",
+        "height": 820,
+        "width": 1460,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2920,
+        1100
+      ],
+      "id": "6d03615f-b938-49f8-83fc-8dfe40729e1e",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fireflies.ai/graphql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 3482aac6-8fc3-4109-9ff9-31fef2a458eb"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"query\": \"query ListTranscripts($mine: Boolean!, $limit: Int!) {\\n  transcripts(mine: $mine, limit: $limit) {\\n    id\\n    title\\n    date\\n    organizer_email\\n    host_email\\n  }\\n}\",\n  \"variables\": {\n    \"mine\": false,\n    \"limit\": 50\n  }\n}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4220,
+        260
+      ],
+      "id": "9ae457dc-501d-4067-b5ad-edbfc12264df",
+      "name": "Extract · Extract_Header_Only_Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "yLiqASW1jPHD8ODE",
+          "name": "Bearer Auth account - FIREFLIES"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for LAST 3 MEETINGS and provide date range for Detailed_Request\nconsole.log(`🔍 TESTING MODE: Finding last 3 meetings and calculating date range`);\n\nconst recentMeetingIDs = [];\nconst allMeetings = [];\n\nitems.forEach(item => {\n  if (item.json?.data?.transcripts) {\n    item.json.data.transcripts.forEach(meeting => {\n      allMeetings.push({\n        id: meeting.id,\n        title: meeting.title,\n        date: meeting.date,\n        date_formatted: new Date(meeting.date).toISOString().split('T')[0],\n        organizer_email: meeting.organizer_email,\n        host_email: meeting.host_email\n      });\n    });\n  }\n});\n\n// Sort meetings by date (newest first) and take the last 3\nallMeetings.sort((a, b) => b.date - a.date);\nconst last3Meetings = allMeetings.slice(0, 3);\n\n// Extract meeting IDs and dates\nconst meetingDates = [];\nlast3Meetings.forEach(meeting => {\n  recentMeetingIDs.push(meeting.id);\n  meetingDates.push(meeting.date);\n  console.log(`✅ Selected meeting: ${meeting.title} (${meeting.id}) - ${meeting.date_formatted}`);\n});\n\n// Calculate date range for GraphQL query\nlet fromDate, toDate;\n\nif (meetingDates.length > 0) {\n  // Find the earliest and latest dates\n  const earliestDate = Math.min(...meetingDates);\n  const latestDate = Math.max(...meetingDates);\n  \n  // Set fromDate to start of earliest day\n  fromDate = new Date(earliestDate);\n  fromDate.setUTCHours(0, 0, 0, 0);\n  \n  // Set toDate to end of latest day\n  toDate = new Date(latestDate);\n  toDate.setUTCHours(23, 59, 59, 999);\n  \n  console.log(`📅 Date range: ${fromDate.toISOString()} to ${toDate.toISOString()}`);\n} else {\n  // Fallback to today if no meetings found\n  const today = new Date();\n  fromDate = new Date(today);\n  fromDate.setUTCHours(0, 0, 0, 0);\n  toDate = new Date(today);\n  toDate.setUTCHours(23, 59, 59, 999);\n  \n  console.log(`⚠️ No meetings found, using today: ${fromDate.toISOString()} to ${toDate.toISOString()}`);\n}\n\nconsole.log(`📊 Total meetings found: ${allMeetings.length}`);\nconsole.log(`🎯 Selected meetings: ${recentMeetingIDs.length}`);\nconsole.log(`📋 Meeting IDs: ${recentMeetingIDs.join(', ')}`);\n\n// Return the data structure that Extract · Detailed_Request expects\nreturn [{\n  json: {\n    status: \"found_meetings\",\n    testing_mode: true,\n    today_date: new Date().toISOString().split('T')[0],\n    date_range: `${fromDate.toISOString().split('T')[0]} to ${toDate.toISOString().split('T')[0]}`,\n    meeting_ids: recentMeetingIDs,\n    meetings_count: recentMeetingIDs.length,\n    selected_meetings: last3Meetings,\n    // GraphQL variables for Extract · Detailed_Request\n    graphql_variables: {\n      fromDate: fromDate.toISOString(),\n      toDate: toDate.toISOString(),\n      limit: 50\n    },\n    // Individual date components for easy access\n    from_date: fromDate.toISOString(),\n    to_date: toDate.toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4220,
+        600
+      ],
+      "id": "af5b80bf-1e01-46c8-badc-6a076f362ec8",
+      "name": "Filter_Todays_Meetings"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.fireflies.ai/graphql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 3482aac6-8fc3-4109-9ff9-31fef2a458eb"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"query ListTranscripts($fromDate: DateTime!, $toDate: DateTime!, $limit: Int!) {\\n  transcripts(fromDate: $fromDate, toDate: $toDate, limit: $limit) {\\n    id\\n    title\\n    date\\n    duration\\n    transcript_url\\n    meeting_link\\n    organizer_email\\n    host_email\\n    meeting_info {\\n      silent_meeting\\n      fred_joined\\n      summary_status\\n    }\\n    summary {\\n      overview\\n      outline\\n      action_items\\n      keywords\\n      topics_discussed\\n      shorthand_bullet\\n      bullet_gist\\n      gist\\n      short_summary\\n      short_overview\\n      meeting_type\\n    }\\n    sentences {\\n      index\\n      speaker_id\\n      speaker_name\\n      raw_text\\n      text\\n      start_time\\n      end_time\\n      ai_filters {\\n        task\\n        pricing\\n        metric\\n        question\\n        date_and_time\\n        sentiment\\n      }\\n    }\\n    meeting_attendees {\\n      displayName\\n      email\\n      location\\n    }\\n  }\\n}\",\n  \"variables\": {\n   \"fromDate\": \"{{ $('Filter_Todays_Meetings').first().json.from_date }}\",\n  \"toDate\": \"{{ $('Filter_Todays_Meetings').first().json.to_date }}\",\n  \"limit\": 50\n  }\n}\n",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          },
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -3880,
+        600
+      ],
+      "id": "224ec8a1-7cf7-4f41-8df2-f4b3beed77b0",
+      "name": "Extract · Detailed_Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "yLiqASW1jPHD8ODE",
+          "name": "Bearer Auth account - FIREFLIES"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for today's meetings using the IDs from Filter_Todays_Meetings node\nconst todaysMeetingIDs = new Set($('Filter_Todays_Meetings').first().json.meeting_ids || []);\nconst TODAY_UTC = new Date().toISOString().split('T')[0];\n\nconsole.log(`🔍 Processing only today's meetings: ${Array.from(todaysMeetingIDs).join(', ')}`);\nconsole.log(`📅 Today's date: ${TODAY_UTC}`);\n\nconst consolidatedMeetings = [];\n\n// Helper function to sanitize text for filenames\nfunction sanitizeFilename(text) {\n  if (!text) return '';\n  let sanitized = text.replace(/[\\/\\\\:*\"<>|?]/g, '_');\n  sanitized = sanitized.replace(/\\s+/g, '_');\n  sanitized = sanitized.replace(/_+/g, '_');\n  sanitized = sanitized.replace(/^_+|_+$/g, '');\n  return sanitized.substring(0, 100);\n}\n\nfor (const response of $input.all()) {\n  const transcripts = response.json.data?.transcripts || [];\n  console.log(`📋 Processing ${transcripts.length} total transcripts from Fireflies`);\n\n  for (const t of transcripts) {\n    // ONLY process if this meeting ID is in today's list\n    if (!todaysMeetingIDs.has(t.id)) {\n      console.log(`⏭️ Skipping meeting ${t.id} - not scheduled for today`);\n      continue;\n    }\n\n    console.log(`✅ Processing today's meeting: ${t.title} (${t.id})`);\n    \n    let datePart = 'nodate';\n    if (t.date) {\n      try {\n        const meetingDate = new Date(t.date);\n        const year = meetingDate.getFullYear();\n        const month = (meetingDate.getMonth() + 1).toString().padStart(2, '0');\n        const day = meetingDate.getDate().toString().padStart(2, '0');\n        datePart = `${year}-${month}-${day}`;\n      } catch (e) {\n        datePart = 'nodate';\n      }\n    }\n\n    const sanitizedTitle = sanitizeFilename(t.title || 'UntitledMeeting');\n    \n    let participantPart = 'noparticipant';\n    const emailUser = (email) => email ? email.split('@')[0] : '';\n    const organizerPrefix = emailUser(t.organizer_email);\n    const hostPrefix = emailUser(t.host_email);\n    \n    if (organizerPrefix) {\n      participantPart = sanitizeFilename(organizerPrefix);\n    } else if (hostPrefix) {\n      participantPart = sanitizeFilename(hostPrefix);\n    }\n\n    const transcriptId = t.id || 'no_id';\n    const descriptiveFilename = `${datePart}_${sanitizedTitle}_${participantPart}_${transcriptId}.json`;\n\n    const meetingData = {\n      filename: descriptiveFilename,\n      original_fireflies_id: transcriptId,\n      id: t.id,\n      title: t.title,\n      date: t.date,\n      duration: t.duration,\n      transcript_url: t.transcript_url,\n      audio_url: t.audio_url,\n      video_url: t.video_url,\n      meeting_link: t.meeting_link,\n      organizer_email: t.organizer_email,\n      host_email: t.host_email,\n      meeting_info: t.meeting_info ? {\n        silent_meeting: t.meeting_info.silent_meeting ?? null,\n        fred_joined: t.meeting_info.fred_joined ?? null,\n        summary_status: t.meeting_info.summary_status ?? null,\n      } : null,\n      summary: t.summary ? {\n        overview: t.summary.overview ?? null,\n        outline: t.summary.outline ?? null,\n        action_items: t.summary.action_items || [],\n        keywords: t.summary.keywords || [],\n        topics_discussed: t.summary.topics_discussed || [],\n        shorthand_bullet: t.summary.shorthand_bullet ?? null,\n        bullet_gist: t.summary.bullet_gist ?? null,\n        gist: t.summary.gist ?? null,\n        short_summary: t.summary.short_summary ?? null,\n        short_overview: t.summary.short_overview ?? null,\n        meeting_type: t.summary.meeting_type ?? null,\n      } : null,\n      sentences: (t.sentences || []).map(s => ({\n        index: s.index,\n        speaker_id: s.speaker_id,\n        speaker_name: s.speaker_name,\n        raw_text: s.raw_text,\n        text: s.text,\n        start_time: s.start_time,\n        end_time: s.end_time,\n        ai_filters: s.ai_filters ? {\n            task: s.ai_filters.task ?? null,\n            pricing: s.ai_filters.pricing ?? null,\n            metric: s.ai_filters.metric ?? null,\n            question: s.ai_filters.question ?? null,\n            date_and_time: s.ai_filters.date_and_time ?? null,\n            sentiment: s.ai_filters.sentiment ?? null,\n        } : {},\n      })),\n      analytics: t.analytics ? {\n        sentiments: t.analytics.sentiments ? {\n          positive_pct: t.analytics.sentiments.positive_pct ?? null,\n          neutral_pct: t.analytics.sentiments.neutral_pct ?? null,\n          negative_pct: t.analytics.sentiments.negative_pct ?? null,\n        } : null,\n        categories: t.analytics.categories ? {\n          tasks: t.analytics.categories.tasks ?? null,\n          questions: t.analytics.categories.questions ?? null,\n          metrics: t.analytics.categories.metrics ?? null,\n          date_times: t.analytics.categories.date_times ?? null,\n        } : null,\n      } : null,\n      speakers: (t.speakers || []).map(sp => ({\n        speaker_id: sp.speaker_id,\n        name: sp.name,\n        duration: sp.duration,\n        word_count: sp.word_count,\n        filler_words: sp.filler_words,\n        questions: sp.questions,\n        monologues_count: sp.monologues_count,\n        duration_pct: sp.duration_pct,\n        words_per_minute: sp.words_per_minute,\n      })),\n      meeting_attendees: (t.meeting_attendees || []).map(a => ({\n        displayName: a.displayName ?? null,\n        email: a.email ?? null,\n        location: a.location ?? null,\n      })),\n    };\n    \n    consolidatedMeetings.push({ json: meetingData });\n  }\n}\n\nconsole.log(`📊 Final result: ${consolidatedMeetings.length} meetings processed for today`);\n\n// Handle no meetings scenario\nif (consolidatedMeetings.length === 0) {\n  console.log(`🟡 No meetings found for today (${TODAY_UTC})`);\n  return [{\n    json: {\n      status: 'no_meetings_today',\n      today_date: TODAY_UTC,\n      message: `No meetings found for today ${TODAY_UTC}`,\n      _workflow_status: 'no_meetings_today',\n      _date_checked: TODAY_UTC,\n      _message: `No meetings scheduled for ${TODAY_UTC}`\n    }\n  }];\n}\n\nreturn consolidatedMeetings;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3880,
+        80
+      ],
+      "id": "f41fc514-fd65-4352-b64a-71b4c70384a9",
+      "name": "Parse & Generate Filenames"
+    },
+    {
+      "parameters": {
+        "operation": "createFromText",
+        "content": "={{ JSON.stringify($json, null, 2) }}",
+        "name": "={{ $json.filename }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1PboVBKot2VbmK3z4D-wuT14b84zoEeXZ",
+          "mode": "list",
+          "cachedResultName": "ACTION_ITEMS",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1PboVBKot2VbmK3z4D-wuT14b84zoEeXZ"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1840,
+        780
+      ],
+      "id": "7df63897-ae26-4d00-87cd-77a4a188e555",
+      "name": "Load · Upload ACTION_ITEMS.json",
+      "retryOnFail": false,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "ej5HKdNlZWQiddEH",
+          "name": "Google Drive account 2"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "6599177006",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2340,
+        1140
+      ],
+      "id": "4736ecd7-e25a-489b-8b39-ed8733ae2b1f",
+      "name": "Telegram1",
+      "webhookId": "eb8cf76f-2db2-4a12-8770-07cb63401380",
+      "credentials": {
+        "telegramApi": {
+          "id": "dmMbOIXwtnHdJG0G",
+          "name": "Telegram - Official Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "joe@coophive.network",
+        "subject": "={{ $json.email_subject }}",
+        "message": "={{ $json.email_html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -2340,
+        1380
+      ],
+      "id": "5edff690-059b-42d9-986c-3b76b2b21c46",
+      "name": "Gmail",
+      "webhookId": "5c1f7e1b-0825-4209-add7-f3bc7308f132",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "V0K2WenECbGTw1ZX",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// SUPER SIMPLE - NO SESSIONS\ntry {\n  const tasks = [];\n  \n  // Process input tasks\n  items.forEach((item, index) => {\n    if (item.json) {\n      tasks.push({\n        task_id: `task_${Date.now()}_${index}`,\n        task_item: item.json.task_item || 'Untitled Task',\n        assignee_full_names: item.json['assignee(s)_full_names'] || 'Unassigned',\n        assignee_emails: item.json.assignee_emails || '',\n        priority: item.json.priority || 'Medium',\n        brief_description: item.json.brief_description || 'No description',\n        date_expected: item.json.date_expected || new Date().toISOString().split('T')[0]\n      });\n    }\n  });\n\n  if (tasks.length === 0) {\n    return [{ json: { error: 'No tasks found', status: 'no_tasks' } }];\n  }\n\n  const meetingTitle = 'TaskForge Meeting';\n  \n  // Send tasks directly in URL (no sessions!)\n  const tasksData = encodeURIComponent(JSON.stringify(tasks));\n  const approvalUrl = `https://web-production-c8f1d.up.railway.app?tasks=${tasksData}&title=${encodeURIComponent(meetingTitle)}&webhook=${encodeURIComponent('https://levirybalov.app.n8n.cloud/webhook/3142af19-c362-47fc-b046-5e1d2b3882b9')}`;\n\n  return [{\n    json: {\n      approval_url: approvalUrl,\n      tasks_count: tasks.length,\n      \n      // For Telegram\n      telegram_message: `🔥 *TaskForge Approval Required*\\n\\n📋 *Meeting:* ${meetingTitle}\\n📊 *Tasks:* ${tasks.length}\\n\\n👆 [*APPROVE TASKS*](${approvalUrl})`,\n      \n      // For Email  \n      email_subject: `TaskForge: ${tasks.length} Action Items Need Approval`,\n      email_html: `<h2>TaskForge Approval</h2><p>${tasks.length} tasks need approval.</p><p><a href=\"${approvalUrl}\">Click to approve</a></p>`,\n      \n      status: 'success'\n    }\n  }];\n\n} catch (error) {\n  return [{ json: { error: error.message, status: 'error' } }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2680,
+        1520
+      ],
+      "id": "6348a9eb-3a31-4482-9472-2fed3d8d4f7b",
+      "name": "HITL · Generate Approval Payload + Send Notifications"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "3142af19-c362-47fc-b046-5e1d2b3882b9",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2160,
+        1580
+      ],
+      "id": "5b517ad7-5bdb-4e4b-8d86-e9bdcfd69052",
+      "name": "Webhook1",
+      "webhookId": "3142af19-c362-47fc-b046-5e1d2b3882b9"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Payload for GDrive and Monday.com\n// Processes Flask webhook response and prepares data for both Google Drive and Monday.com\n\ntry {\n  console.log('🔄 Processing Flask webhook response...');\n  \n  // Get the webhook response from Flask\n  const webhookData = $input.first().json;\n  \n  if (!webhookData) {\n    throw new Error('No webhook data received from Flask app');\n  }\n  \n  console.log(`📊 Webhook data received:`, {\n    execution_id: webhookData.execution_id,\n    session_id: webhookData.session_id,\n    approval_status: webhookData.approval_status,\n    approved_count: webhookData.summary?.approved_count || 0,\n    rejected_count: webhookData.summary?.rejected_count || 0\n  });\n  \n  // Extract approved tasks\n  const approvedTasks = webhookData.approved_tasks || [];\n  const rejectedTasks = webhookData.rejected_tasks || [];\n  \n  if (approvedTasks.length === 0) {\n    console.log('⚠️ No approved tasks to process');\n    return [{\n      json: {\n        status: 'no_approved_tasks',\n        message: 'No tasks were approved for processing',\n        summary: webhookData.summary,\n        timestamp: new Date().toISOString()\n      }\n    }];\n  }\n  \n  console.log(`✅ Processing ${approvedTasks.length} approved tasks`);\n  \n  // ============================================\n  // 1. PREPARE GOOGLE DRIVE ACTION_ITEMS.json\n  // ============================================\n  \n  const actionItemsPayload = {\n    metadata: {\n      created_at: new Date().toISOString(),\n      execution_id: webhookData.execution_id,\n      session_id: webhookData.session_id,\n      total_tasks: approvedTasks.length,\n      approval_summary: webhookData.summary,\n      workflow_version: '2.1',\n      source: 'TaskForge_HITL_Approval'\n    },\n    approved_tasks: approvedTasks.map(task => ({\n      task_id: task.task_id,\n      task_item: task.task_item,\n      assignee_emails: task.assignee_emails,\n      assignee_full_names: task.assignee_full_names,\n      priority: task.priority,\n      brief_description: task.brief_description,\n      date_expected: task.date_expected,\n      approved_at: task.approved_at,\n      meeting_context: task.meeting_context || {}\n    })),\n    rejected_tasks: rejectedTasks.map(task => ({\n      task_id: task.task_id,\n      task_item: task.task_item,\n      reason: task.reason,\n      rejected_at: task.rejected_at\n    })),\n    processing_notes: {\n      original_task_count: webhookData.summary?.total_tasks || 0,\n      approval_rate: webhookData.summary?.approval_rate || 0,\n      processed_by: 'TaskForge_HITL_System',\n      next_steps: 'Tasks will be created in Monday.com board'\n    }\n  };\n  \n  // Generate filename for ACTION_ITEMS.json\n  const timestamp = new Date().toISOString().split('T')[0];\n  const sessionShort = webhookData.session_id.split('_').pop().substring(0, 8);\n  const actionItemsFilename = `${timestamp}_ACTION_ITEMS_approved_${approvedTasks.length}_${sessionShort}.json`;\n  \n  // ============================================\n  // 2. PREPARE OUTPUT FOR BOTH SYSTEMS\n  // ============================================\n  \n  const outputs = [];\n  \n  // First output: Google Drive ACTION_ITEMS.json\n  outputs.push({\n    json: {\n      filename: actionItemsFilename,\n      meeting_id: webhookData.session_id,\n      total_tasks: approvedTasks.length,\n      created_at: new Date().toISOString(),\n      ...actionItemsPayload\n    }\n  });\n  \n  // Subsequent outputs: Individual Monday.com tasks\n  approvedTasks.forEach((task, index) => {\n    outputs.push({\n      json: {\n        // Monday.com task format\n        task_item: task.task_item,\n        'assignee(s)_full_names': task.assignee_full_names,\n        assignee_emails: task.assignee_emails,\n        priority: task.priority,\n        brief_description: task.brief_description,\n        date_expected: task.date_expected,\n        \n        // Additional metadata\n        task_id: task.task_id,\n        approved_at: task.approved_at,\n        session_id: webhookData.session_id,\n        execution_id: webhookData.execution_id,\n        task_index: index + 1,\n        total_tasks: approvedTasks.length,\n        \n        // Meeting context if available\n        meeting_title: task.meeting_context?.title || 'TaskForge Meeting',\n        meeting_organizer: task.meeting_context?.organizer || 'Unknown',\n        \n        // Processing metadata\n        source: 'TaskForge_HITL_Approved',\n        workflow_version: '2.1',\n        processed_at: new Date().toISOString()\n      }\n    });\n  });\n  \n  console.log(`📤 Generated outputs:`);\n  console.log(`   - 1 ACTION_ITEMS.json file (${actionItemsFilename})`);\n  console.log(`   - ${approvedTasks.length} Monday.com tasks`);\n  console.log(`   - Total outputs: ${outputs.length}`);\n  \n  return outputs;\n  \n} catch (error) {\n  console.error('❌ Error in Build Payload node:', error.message);\n  \n  return [{\n    json: {\n      error: error.message,\n      status: 'error',\n      timestamp: new Date().toISOString(),\n      debug_info: {\n        input_data: $input.first()?.json || 'No input data',\n        error_stack: error.stack\n      }\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        1580
+      ],
+      "id": "c7e41624-f3b9-40ce-a2dd-16132ed35165",
+      "name": "Build Payload for GDrive and Monday.com"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger · Daily run (23:59 UTC)": {
+      "main": [
+        [
+          {
+            "node": "Extract · Extract_Header_Only_Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter · Keep only NEW transcripts": {
+      "main": [
+        [
+          {
+            "node": "Load · Upload raw transcript JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load · Upload raw transcript JSON": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Error-Mgr · Build structured error report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform · LLM model (Gemini 2.5)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Transform · AI Agent – extract/verify action items",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform · AI Agent – extract/verify action items": {
+      "main": [
+        [
+          {
+            "node": "Transform · Parse tasks → Monday schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform · Parse tasks → Monday schema": {
+      "main": [
+        [
+          {
+            "node": "HITL · Generate Approval Payload + Send Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load · Create tasks on Monday board": {
+      "main": [
+        [
+          {
+            "node": "Report · Build success summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error-Mgr · Build structured error report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report · Build success summary": {
+      "main": [
+        [
+          {
+            "node": "Report · Telegram success summary (opt-out)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Report · Email success summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error-Mgr · Build structured error report": {
+      "main": [
+        [
+          {
+            "node": "Error · Telegram failure alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Error · Email failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract · Extract_Header_Only_Request": {
+      "main": [
+        [
+          {
+            "node": "Filter_Todays_Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error-Mgr · Build structured error report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter_Todays_Meetings": {
+      "main": [
+        [
+          {
+            "node": "Extract · Detailed_Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract · Detailed_Request": {
+      "main": [
+        [
+          {
+            "node": "Parse & Generate Filenames",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Generate Filenames": {
+      "main": [
+        [
+          {
+            "node": "Transform · AI Agent – extract/verify action items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter · Keep only NEW transcripts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load · Upload ACTION_ITEMS.json": {
+      "main": [
+        [
+          {
+            "node": "Load · Create tasks on Monday board",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error-Mgr · Build structured error report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HITL · Generate Approval Payload + Send Notifications": {
+      "main": [
+        [
+          {
+            "node": "Telegram1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Build Payload for GDrive and Monday.com",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Payload for GDrive and Monday.com": {
+      "main": [
+        [
+          {
+            "node": "Load · Upload ACTION_ITEMS.json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "89cf8cc3-0af3-45f7-8666-7b9d438859f4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a6f30bd66fed7fcd249de9838e08b9e7b2adf65dc6cc773a40f041d31551bafa"
+  },
+  "id": "GAOckzz1YBhYldk5",
+  "tags": []
+}

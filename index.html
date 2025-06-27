@@ -1,198 +1,506 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>TaskForge HITL</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskForge HITL Approval</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial; background: #f5f5f5; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .header { background: #4CAF50; color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
-        .task { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; border-left: 5px solid #f44336; }
-        .task.approved { border-left-color: #4CAF50; background: #f0fff0; }
-        .task-title { font-weight: bold; margin-bottom: 10px; }
-        .task-meta { color: #666; margin-bottom: 10px; }
-        .task-actions { text-align: right; margin-top: 15px; }
-        button { padding: 8px 16px; margin: 0 5px; border: none; border-radius: 4px; cursor: pointer; }
-        .approve { background: #4CAF50; color: white; }
-        .reject { background: #f44336; color: white; }
-        .submit { background: #2196F3; color: white; padding: 15px 30px; font-size: 16px; margin: 20px auto; display: block; }
-        .counter { position: fixed; top: 20px; right: 20px; background: #2196F3; color: white; padding: 10px; border-radius: 5px; }
-        .loading { text-align: center; padding: 50px; }
-        .success { background: #d4edda; color: #155724; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .stats {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+        }
+
+        .meeting-group {
+            border-bottom: 1px solid #eee;
+        }
+
+        .meeting-header {
+            background: #f8f9fa;
+            padding: 20px 30px;
+            border-left: 4px solid #4CAF50;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .task-card {
+            background: #fff;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 30px;
+            transition: all 0.3s ease;
+        }
+
+        .task-card.approved {
+            border-color: #4CAF50;
+            background: linear-gradient(135deg, #f8fff8 0%, #f0fff0 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(76, 175, 80, 0.15);
+        }
+
+        .task-card.rejected {
+            border-color: #f44336;
+            background: #fff0f0;
+            opacity: 0.7;
+        }
+
+        .task-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 16px;
+        }
+
+        .task-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .task-description {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: #fdfdfd;
+            border-left: 4px solid #e9ecef;
+            border-radius: 4px;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-reject {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-approve {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .submit-section {
+            padding: 30px;
+            background: #f8f9fa;
+            text-align: center;
+            border-top: 1px solid #eee;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+            padding: 16px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(33, 150, 243, 0.4);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 80px 30px;
+            color: #666;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .success {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 60px 30px;
+            text-align: center;
+        }
+
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin: 20px;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
-    <div class="counter">Approved: <span id="count">0</span>/<span id="total">0</span></div>
-    
     <div class="container">
         <div class="header">
-            <h1>🚀 TaskForge HITL Approval</h1>
-            <p id="meetingTitle">Loading...</p>
+            <div class="stats">
+                <span id="approvedCount">0</span>/<span id="totalCount">0</span> Approved
+            </div>
+            <h1>🚀 TaskForge HITL</h1>
+            <p id="meetingTitle">Loading tasks...</p>
         </div>
         
         <div id="loading" class="loading">
-            <h3>⏳ Loading tasks...</h3>
-            <p>Waiting for task data from N8N...</p>
+            <div class="loading-spinner"></div>
+            <h3>Loading Tasks...</h3>
         </div>
         
         <div id="content" style="display: none;">
-            <div id="tasks"></div>
-            <button class="submit" onclick="submit()">💾 Submit to TaskForge</button>
+            <div id="meetingsContainer"></div>
+            
+            <div class="submit-section">
+                <button class="submit-btn" onclick="submitApprovals()">
+                    💾 Submit to TaskForge
+                </button>
+            </div>
         </div>
         
-        <div id="success" style="display: none;" class="success">
+        <div id="success" class="success" style="display: none;">
             <h2>✅ Success!</h2>
-            <p>Tasks have been submitted to TaskForge.</p>
-            <p>This page will close automatically.</p>
+            <p>Your approved tasks have been submitted to TaskForge.</p>
+            <p>This window will close automatically in 3 seconds.</p>
+        </div>
+        
+        <div id="error" class="error" style="display: none;">
+            <h3>❌ Error</h3>
+            <p id="errorMessage"></p>
         </div>
     </div>
 
     <script>
-        let tasks = [];
+        let tasksByMeeting = {};
         let webhookUrl = 'https://levirybalov.app.n8n.cloud/webhook/3142af19-c362-47fc-b046-5e1d2b3882b9';
+        let totalTasks = 0;
 
-        // Listen for task data from N8N (via postMessage or URL)
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.tasks) {
-                loadTasks(event.data);
-            }
-        });
-
-        // Check URL parameters for task data
-        function checkUrlData() {
+        function getUrlParams() {
             const params = new URLSearchParams(window.location.search);
-            const tasksParam = params.get('tasks');
-            const titleParam = params.get('title');
-            
-            if (tasksParam) {
-                try {
-                    const taskData = {
-                        tasks: JSON.parse(decodeURIComponent(tasksParam)),
-                        meeting_title: titleParam || 'TaskForge Meeting',
-                        webhook_url: params.get('webhook') || webhookUrl
-                    };
-                    loadTasks(taskData);
-                    return true;
-                } catch (e) {
-                    console.error('Error parsing URL data:', e);
-                }
+            return {
+                tasks: params.get('tasks'),
+                title: params.get('title'),
+                webhook: params.get('webhook')
+            };
+        }
+
+        function fixEncoding(text) {
+            if (!text) return '';
+            try {
+                return text
+                    .replace(/â€™/g, "'")
+                    .replace(/â€œ/g, '"')
+                    .replace(/â€/g, '"')
+                    .replace(/â€"/g, '–')
+                    .replace(/â€"/g, '—')
+                    .replace(/ðŸ"¥/g, '🔥')
+                    .replace(/ðŸ'¤/g, '👤')
+                    .replace(/ðŸ"§/g, '📧')
+                    .replace(/ðŸ"…/g, '📅');
+            } catch (e) {
+                return text;
             }
-            return false;
         }
 
-        // Load demo data if no real data
-        function loadDemoData() {
-            setTimeout(() => {
-                const demoData = {
-                    meeting_title: 'TaskForge Demo Meeting',
-                    webhook_url: webhookUrl,
-                    tasks: [
-                        {
-                            task_id: 'demo_1',
-                            task_item: 'Review new Python SDK changes',
-                            assignee_full_names: 'Yang Zheng',
-                            assignee_emails: 'yang@coophive.network',
-                            priority: 'High',
-                            brief_description: 'Yang needs to review the Python SDK changes submitted at midnight.',
-                            date_expected: '2025-07-26'
-                        },
-                        {
-                            task_id: 'demo_2', 
-                            task_item: 'Provide cost breakdown analysis',
-                            assignee_full_names: 'Bryan Bui',
-                            assignee_emails: 'bryan@example.com',
-                            priority: 'Medium',
-                            brief_description: 'Bryan needs to provide detailed cost breakdown with justifications.',
-                            date_expected: '2025-07-25'
-                        }
-                    ]
+        function groupTasksByMeeting(tasks) {
+            const grouped = {};
+            
+            tasks.forEach(task => {
+                const meetingId = task.meeting_id || task.meeting_title || 'Default Meeting';
+                const meetingTitle = fixEncoding(task.meeting_title || meetingId);
+                
+                if (!grouped[meetingId]) {
+                    grouped[meetingId] = {
+                        title: meetingTitle,
+                        organizer: task.meeting_organizer || 'Unknown',
+                        date: task.meeting_date || new Date().toISOString(),
+                        tasks: []
+                    };
+                }
+                
+                const cleanTask = {
+                    ...task,
+                    task_item: fixEncoding(task.task_item),
+                    brief_description: fixEncoding(task.brief_description),
+                    assignee_full_names: fixEncoding(task.assignee_full_names),
+                    status: 'pending'
                 };
-                loadTasks(demoData);
-            }, 2000);
+                
+                grouped[meetingId].tasks.push(cleanTask);
+            });
+            
+            return grouped;
         }
 
-        function loadTasks(data) {
-            tasks = data.tasks.map(t => ({...t, status: 'reject'}));
-            webhookUrl = data.webhook_url || webhookUrl;
+        function renderMeetings() {
+            const container = document.getElementById('meetingsContainer');
+            container.innerHTML = '';
             
-            document.getElementById('meetingTitle').textContent = data.meeting_title || 'TaskForge Meeting';
-            document.getElementById('total').textContent = tasks.length;
-            
-            const container = document.getElementById('tasks');
-            container.innerHTML = tasks.map((task, i) => `
-                <div class="task" id="task_${i}">
-                    <div class="task-title">${task.task_item}</div>
-                    <div class="task-meta">
-                        👤 ${task.assignee_full_names} | 📧 ${task.assignee_emails}<br>
-                        📅 ${task.date_expected} | 🔥 ${task.priority}
+            Object.entries(tasksByMeeting).forEach(([meetingId, meeting]) => {
+                const meetingDiv = document.createElement('div');
+                meetingDiv.className = 'meeting-group';
+                meetingDiv.innerHTML = `
+                    <div class="meeting-header">
+                        <div style="font-size: 1.4rem; margin-bottom: 8px;">${meeting.title}</div>
+                        <div style="color: #7f8c8d; font-size: 0.9rem;">
+                            📅 ${new Date(meeting.date).toLocaleDateString()} • 
+                            👤 ${meeting.organizer} • 
+                            📋 ${meeting.tasks.length} tasks
+                        </div>
                     </div>
-                    <div>${task.brief_description}</div>
+                    ${meeting.tasks.map((task, index) => renderTask(task, meetingId, index)).join('')}
+                `;
+                container.appendChild(meetingDiv);
+            });
+        }
+
+        function renderTask(task, meetingId, taskIndex) {
+            const taskId = `${meetingId}_${taskIndex}`;
+            
+            return `
+                <div class="task-card" id="task_${taskId}">
+                    <div class="task-title">${task.task_item}</div>
+                    
+                    <div class="task-meta">
+                        <div>👤 ${task.assignee_full_names}</div>
+                        <div>📧 ${task.assignee_emails}</div>
+                        <div>📅 ${task.date_expected}</div>
+                        <div>🔥 ${task.priority} Priority</div>
+                    </div>
+                    
+                    <div class="task-description">
+                        ${task.brief_description}
+                    </div>
+                    
                     <div class="task-actions">
-                        <button class="reject" onclick="setAction(${i}, 'reject')">❌ Reject</button>
-                        <button class="approve" onclick="setAction(${i}, 'approve')">✅ Approve</button>
+                        <button class="btn btn-reject" onclick="setTaskStatus('${taskId}', 'reject')">
+                            ❌ Reject
+                        </button>
+                        <button class="btn btn-approve" onclick="setTaskStatus('${taskId}', 'approve')">
+                            ✅ Approve
+                        </button>
                     </div>
                 </div>
-            `).join('');
-            
-            // Show content, hide loading
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('content').style.display = 'block';
-            
-            updateCounter();
+            `;
         }
 
-        function setAction(index, action) {
-            tasks[index].status = action;
-            const card = document.getElementById(`task_${index}`);
-            card.className = action === 'approve' ? 'task approved' : 'task';
-            updateCounter();
-        }
-
-        function updateCounter() {
-            const approved = tasks.filter(t => t.status === 'approve').length;
-            document.getElementById('count').textContent = approved;
-        }
-
-        async function submit() {
-            const approved = tasks.filter(t => t.status === 'approve');
+        function setTaskStatus(taskId, status) {
+            const [meetingId, taskIndex] = taskId.split('_');
+            const task = tasksByMeeting[meetingId].tasks[taskIndex];
+            task.status = status;
             
-            const payload = {
-                approved_tasks: approved,
-                approved_count: approved.length,
-                total_tasks: tasks.length,
-                timestamp: new Date().toISOString()
-            };
+            const taskElement = document.getElementById(`task_${taskId}`);
+            taskElement.className = `task-card ${status === 'approve' ? 'approved' : 'rejected'}`;
+            
+            updateStats();
+        }
+
+        function updateStats() {
+            let approved = 0;
+            Object.values(tasksByMeeting).forEach(meeting => {
+                meeting.tasks.forEach(task => {
+                    if (task.status === 'approve') approved++;
+                });
+            });
+            
+            document.getElementById('approvedCount').textContent = approved;
+        }
+
+        async function submitApprovals() {
+            const approvedTasks = [];
+            
+            Object.entries(tasksByMeeting).forEach(([meetingId, meeting]) => {
+                meeting.tasks.forEach(task => {
+                    if (task.status === 'approve') {
+                        approvedTasks.push({
+                            ...task,
+                            meeting_context: {
+                                id: meetingId,
+                                title: meeting.title,
+                                organizer: meeting.organizer,
+                                date: meeting.date
+                            },
+                            approved_at: new Date().toISOString()
+                        });
+                    }
+                });
+            });
+
+            if (approvedTasks.length === 0) {
+                alert('Please approve at least one task before submitting.');
+                return;
+            }
 
             try {
+                const payload = {
+                    approved_tasks: approvedTasks,
+                    approved_count: approvedTasks.length,
+                    total_tasks: totalTasks,
+                    timestamp: new Date().toISOString(),
+                    source: 'TaskForge_HITL_Dashboard'
+                };
+
+                console.log('Submitting payload:', payload);
+
                 const response = await fetch(webhookUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                
+
                 if (response.ok) {
-                    // Show success and auto-close
                     document.getElementById('content').style.display = 'none';
                     document.getElementById('success').style.display = 'block';
                     
-                    setTimeout(() => {
-                        window.close();
-                    }, 3000);
+                    setTimeout(() => { window.close(); }, 3000);
                 } else {
-                    alert('❌ Error submitting to TaskForge');
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
             } catch (error) {
-                alert('❌ Error: ' + error.message);
+                console.error('Submit error:', error);
+                document.getElementById('errorMessage').textContent = error.message;
+                document.getElementById('error').style.display = 'block';
             }
         }
 
-        // Initialize - check for URL data first, then demo
-        if (!checkUrlData()) {
-            loadDemoData();
+        function init() {
+            const params = getUrlParams();
+            
+            if (params.webhook) {
+                webhookUrl = decodeURIComponent(params.webhook);
+            }
+            
+            if (params.title) {
+                document.getElementById('meetingTitle').textContent = fixEncoding(decodeURIComponent(params.title));
+            }
+
+            if (params.tasks) {
+                try {
+                    const tasks = JSON.parse(decodeURIComponent(params.tasks));
+                    totalTasks = tasks.length;
+                    
+                    document.getElementById('totalCount').textContent = totalTasks;
+                    
+                    tasksByMeeting = groupTasksByMeeting(tasks);
+                    renderMeetings();
+                    
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('content').style.display = 'block';
+                    
+                } catch (error) {
+                    console.error('Failed to parse tasks:', error);
+                    document.getElementById('errorMessage').textContent = 'Failed to load tasks. Invalid data format.';
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                }
+            } else {
+                loadDemoData();
+            }
         }
 
-        // Expose function for N8N to call directly
-        window.receiveTaskData = loadTasks;
+        function loadDemoData() {
+            setTimeout(() => {
+                const demoTasks = [
+                    {
+                        task_id: 'demo_1',
+                        task_item: 'Review Python SDK Changes',
+                        assignee_full_names: 'Yang Zheng',
+                        assignee_emails: 'yang@coophive.network',
+                        priority: 'High',
+                        brief_description: 'Yang needs to review the Python SDK changes submitted at midnight.',
+                        date_expected: '2025-07-26',
+                        meeting_id: 'meeting_1',
+                        meeting_title: 'CoopHive Development Sync',
+                        meeting_organizer: 'Levi Rybalov'
+                    },
+                    {
+                        task_id: 'demo_2',
+                        task_item: 'Provide Cost Breakdown',
+                        assignee_full_names: 'Bryan Bui',
+                        assignee_emails: 'bryan@var-meta.com',
+                        priority: 'Medium',
+                        brief_description: 'Bryan needs to provide detailed cost breakdown with justifications.',
+                        date_expected: '2025-07-25',
+                        meeting_id: 'meeting_1',
+                        meeting_title: 'CoopHive Development Sync',
+                        meeting_organizer: 'Levi Rybalov'
+                    }
+                ];
+                
+                totalTasks = demoTasks.length;
+                document.getElementById('totalCount').textContent = totalTasks;
+                
+                tasksByMeeting = groupTasksByMeeting(demoTasks);
+                renderMeetings();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+            }, 1000);
+        }
+
+        init();
     </script>
 </body>
-</html>
+</html> 
