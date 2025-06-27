@@ -408,8 +408,7 @@
                     timestamp: new Date().toISOString(),
                     source: 'TaskForge_HITL_Dashboard',
                     execution_id: 'hitl_' + Date.now(),
-                    session_id: 'session_' + Date.now(),
-                    webhook_url: webhookUrl
+                    session_id: 'session_' + Date.now()
                 };
 
                 console.log('📤 Submitting to server-side proxy');
@@ -422,7 +421,7 @@
                 submitBtn.disabled = true;
 
                 // Submit to our own server instead of directly to N8N
-                const response = await fetch('/submit', {
+                const response = await fetch(webhookUrl, {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json'
