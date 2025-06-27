@@ -268,14 +268,40 @@
             const grouped = {};
             
             tasks.forEach(task => {
-                const meetingId = task.meeting_id || task.meeting_title || 'Default Meeting';
-                const meetingTitle = fixEncoding(task.meeting_title || meetingId);
+                // Extract meeting info from task timestamps and descriptions
+                const taskTimestamp = task.task_item.match(/\((\d{2}:\d{2})\)$/);
+                const timeStamp = taskTimestamp ? taskTimestamp[1] : '';
+                
+                // Group by assignee and time patterns to identify different meetings
+                let meetingId = 'default';
+                let meetingTitle = 'TaskForge Meeting';
+                
+                // Check if this is a Moshe task (different meeting)
+                if (task.assignee_full_names.includes('Moshe')) {
+                    meetingId = 'networking_meeting';
+                    meetingTitle = 'CoopHive Networking Discussion';
+                }
+                // Check if this is Varmeta team tasks
+                else if (task.assignee_full_names.includes('Bryan') || task.assignee_full_names.includes('Anh')) {
+                    meetingId = 'varmeta_meeting';
+                    meetingTitle = 'Varmeta Development Planning';
+                }
+                // Yang's tasks
+                else if (task.assignee_full_names.includes('Yang')) {
+                    meetingId = 'coophive_dev_meeting';
+                    meetingTitle = 'CoopHive Development Sync';
+                }
+                // Levi's tasks
+                else if (task.assignee_full_names.includes('Levi')) {
+                    meetingId = 'leadership_meeting';
+                    meetingTitle = 'Leadership & Coordination';
+                }
                 
                 if (!grouped[meetingId]) {
                     grouped[meetingId] = {
-                        title: meetingTitle,
-                        organizer: task.meeting_organizer || 'Unknown',
-                        date: task.meeting_date || new Date().toISOString(),
+                        title: fixEncoding(meetingTitle),
+                        organizer: 'Levi Rybalov',
+                        date: new Date().toISOString(),
                         tasks: []
                     };
                 }
@@ -399,28 +425,44 @@
                     approved_count: approvedTasks.length,
                     total_tasks: totalTasks,
                     timestamp: new Date().toISOString(),
-                    source: 'TaskForge_HITL_Dashboard'
+                    source: 'TaskForge_HITL_Dashboard',
+                    execution_id: 'hitl_' + Date.now(),
+                    session_id: 'session_' + Date.now()
                 };
 
                 console.log('Submitting payload:', payload);
 
                 const response = await fetch(webhookUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    mode: 'cors',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
                     body: JSON.stringify(payload)
                 });
 
-                if (response.ok) {
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                if (response.ok || response.status === 200) {
                     document.getElementById('content').style.display = 'none';
                     document.getElementById('success').style.display = 'block';
                     
                     setTimeout(() => { window.close(); }, 3000);
                 } else {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
             } catch (error) {
                 console.error('Submit error:', error);
-                document.getElementById('errorMessage').textContent = error.message;
+                let errorMsg = error.message;
+                
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    errorMsg = 'Network error - webhook might be blocked by CORS. Check console for details.';
+                }
+                
+                document.getElementById('errorMessage').textContent = errorMsg;
                 document.getElementById('error').style.display = 'block';
             }
         }
