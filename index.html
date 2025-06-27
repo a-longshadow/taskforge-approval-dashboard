@@ -408,10 +408,11 @@
                     timestamp: new Date().toISOString(),
                     source: 'TaskForge_HITL_Dashboard',
                     execution_id: 'hitl_' + Date.now(),
-                    session_id: 'session_' + Date.now()
+                    session_id: 'session_' + Date.now(),
+                    webhook_url: webhookUrl
                 };
 
-                console.log('📤 Submitting payload to:', webhookUrl);
+                console.log('📤 Submitting to server-side proxy');
                 console.log('📋 Payload:', payload);
 
                 // Show loading state
@@ -420,19 +421,18 @@
                 submitBtn.textContent = '⏳ Submitting...';
                 submitBtn.disabled = true;
 
-                const response = await fetch(webhookUrl, {
+                // Submit to our own server instead of directly to N8N
+                const response = await fetch('/submit', {
                     method: 'POST',
                     headers: { 
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(payload)
                 });
 
                 console.log('📡 Response status:', response.status);
-                console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()));
 
-                if (response.ok || response.status === 200) {
+                if (response.ok) {
                     const responseData = await response.text();
                     console.log('✅ Success response:', responseData);
                     
@@ -453,15 +453,7 @@
                 submitBtn.textContent = '💾 Submit to TaskForge';
                 submitBtn.disabled = false;
                 
-                let errorMsg = error.message;
-                
-                if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                    errorMsg = 'Network error - webhook might be blocked by CORS. Check console for details.';
-                } else if (error.message.includes('CORS')) {
-                    errorMsg = 'CORS error - please check browser console for details.';
-                }
-                
-                document.getElementById('errorMessage').textContent = errorMsg;
+                document.getElementById('errorMessage').textContent = error.message;
                 document.getElementById('error').style.display = 'block';
             }
         }
