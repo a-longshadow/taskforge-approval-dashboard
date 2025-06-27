@@ -268,40 +268,17 @@
             const grouped = {};
             
             tasks.forEach(task => {
-                // Extract meeting info from task timestamps and descriptions
-                const taskTimestamp = task.task_item.match(/\((\d{2}:\d{2})\)$/);
-                const timeStamp = taskTimestamp ? taskTimestamp[1] : '';
-                
-                // Group by assignee and time patterns to identify different meetings
-                let meetingId = 'default';
-                let meetingTitle = 'TaskForge Meeting';
-                
-                // Check if this is a Moshe task (different meeting)
-                if (task.assignee_full_names.includes('Moshe')) {
-                    meetingId = 'networking_meeting';
-                    meetingTitle = 'CoopHive Networking Discussion';
-                }
-                // Check if this is Varmeta team tasks
-                else if (task.assignee_full_names.includes('Bryan') || task.assignee_full_names.includes('Anh')) {
-                    meetingId = 'varmeta_meeting';
-                    meetingTitle = 'Varmeta Development Planning';
-                }
-                // Yang's tasks
-                else if (task.assignee_full_names.includes('Yang')) {
-                    meetingId = 'coophive_dev_meeting';
-                    meetingTitle = 'CoopHive Development Sync';
-                }
-                // Levi's tasks
-                else if (task.assignee_full_names.includes('Levi')) {
-                    meetingId = 'leadership_meeting';
-                    meetingTitle = 'Leadership & Coordination';
-                }
+                // Use actual meeting data from the task
+                const meetingId = task.meeting_id || task.meeting_title || `meeting_${task.task_id.split('_')[1]}` || 'default_meeting';
+                const meetingTitle = task.meeting_title || 'TaskForge Meeting';
+                const meetingOrganizer = task.meeting_organizer || task.organizer_email || 'Unknown';
+                const meetingDate = task.meeting_date || task.date || new Date().toISOString();
                 
                 if (!grouped[meetingId]) {
                     grouped[meetingId] = {
                         title: fixEncoding(meetingTitle),
-                        organizer: 'Levi Rybalov',
-                        date: new Date().toISOString(),
+                        organizer: meetingOrganizer,
+                        date: meetingDate,
                         tasks: []
                     };
                 }
@@ -361,10 +338,10 @@
                     </div>
                     
                     <div class="task-actions">
-                        <button class="btn btn-reject" onclick="setTaskStatus('${taskId}', 'reject')">
+                        <button class="btn btn-reject" onclick="setTaskStatus('${meetingId}', ${taskIndex}, 'reject')">
                             ❌ Reject
                         </button>
-                        <button class="btn btn-approve" onclick="setTaskStatus('${taskId}', 'approve')">
+                        <button class="btn btn-approve" onclick="setTaskStatus('${meetingId}', ${taskIndex}, 'approve')">
                             ✅ Approve
                         </button>
                     </div>
@@ -372,11 +349,11 @@
             `;
         }
 
-        function setTaskStatus(taskId, status) {
-            const [meetingId, taskIndex] = taskId.split('_');
+        function setTaskStatus(meetingId, taskIndex, status) {
             const task = tasksByMeeting[meetingId].tasks[taskIndex];
             task.status = status;
             
+            const taskId = `${meetingId}_${taskIndex}`;
             const taskElement = document.getElementById(`task_${taskId}`);
             taskElement.className = `task-card ${status === 'approve' ? 'approved' : 'rejected'}`;
             
