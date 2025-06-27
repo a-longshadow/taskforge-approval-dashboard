@@ -51,16 +51,23 @@ def get_tasks(execution_id):
 
 @app.route('/get-approved/<execution_id>', methods=['GET'])
 def get_approved(execution_id):
-    """Get approved tasks for n8n (with self-destruct)"""
+    """Get approved tasks for n8n (with PROPER self-destruct)"""
     if execution_id in approved_results:
-        result = approved_results.pop(execution_id)  # Self-destruct
-        stored_tasks.pop(execution_id, None)  # Cleanup
-        print(f"✅ Returning approved tasks for execution: {execution_id}")
-        print(f"🗑️ Cleaned up storage for: {execution_id}")
+        result = approved_results.pop(execution_id)  # Remove from approved
+        stored_tasks.pop(execution_id, None)  # Remove from stored
+        
+        print(f"✅ Self-destructed data for execution: {execution_id}")
+        print(f"📊 Returned {result.get('approved_count', 0)} approved tasks")
+        
         return jsonify(result)
     
-    print(f"⏳ No approved results yet for execution: {execution_id}")
-    return jsonify({'status': 'pending'}), 202
+    # Check if tasks exist but not yet approved
+    if execution_id in stored_tasks:
+        print(f"⏳ Tasks exist but not yet approved for: {execution_id}")
+        return jsonify({'status': 'pending', 'message': 'Tasks not yet approved'}), 202
+    
+    print(f"❌ No data found for execution: {execution_id}")
+    return jsonify({'error': 'Execution ID not found or already processed'}), 404
 
 @app.route('/submit-approval', methods=['POST'])
 def submit_approval():
