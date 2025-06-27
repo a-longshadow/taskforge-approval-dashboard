@@ -17,6 +17,8 @@
         .reject { background: #f44336; color: white; }
         .submit { background: #2196F3; color: white; padding: 15px 30px; font-size: 16px; margin: 20px auto; display: block; }
         .counter { position: fixed; top: 20px; right: 20px; background: #2196F3; color: white; padding: 10px; border-radius: 5px; }
+        .loading { text-align: center; padding: 50px; }
+        .success { background: #d4edda; color: #155724; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0; }
     </style>
 </head>
 <body>
@@ -28,53 +30,92 @@
             <p id="meetingTitle">Loading...</p>
         </div>
         
-        <div id="tasks"></div>
+        <div id="loading" class="loading">
+            <h3>⏳ Loading tasks...</h3>
+            <p>Waiting for task data from N8N...</p>
+        </div>
         
-        <button class="submit" onclick="submit()">💾 Submit to TaskForge</button>
+        <div id="content" style="display: none;">
+            <div id="tasks"></div>
+            <button class="submit" onclick="submit()">💾 Submit to TaskForge</button>
+        </div>
+        
+        <div id="success" style="display: none;" class="success">
+            <h2>✅ Success!</h2>
+            <p>Tasks have been submitted to TaskForge.</p>
+            <p>This page will close automatically.</p>
+        </div>
     </div>
 
     <script>
         let tasks = [];
-        let sessionData = {};
+        let webhookUrl = 'https://levirybalov.app.n8n.cloud/webhook/3142af19-c362-47fc-b046-5e1d2b3882b9';
 
-        // Get session from URL or use demo data
-        function init() {
+        // Listen for task data from N8N (via postMessage or URL)
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.tasks) {
+                loadTasks(event.data);
+            }
+        });
+
+        // Check URL parameters for task data
+        function checkUrlData() {
             const params = new URLSearchParams(window.location.search);
-            const sessionId = params.get('session') || 'demo';
+            const tasksParam = params.get('tasks');
+            const titleParam = params.get('title');
             
-            // Demo data
-            sessionData = {
-                session_id: sessionId,
-                meeting_title: 'TaskForge Demo Meeting',
-                webhook_url: 'https://levirybalov.app.n8n.cloud/webhook/3142af19-c362-47fc-b046-5e1d2b3882b9',
-                tasks: [
-                    {
-                        task_id: 'demo_1',
-                        task_item: 'Review new Python SDK changes',
-                        assignee_full_names: 'Yang Zheng',
-                        assignee_emails: 'yang@coophive.network',
-                        priority: 'High',
-                        brief_description: 'Yang needs to review the Python SDK changes submitted at midnight.',
-                        date_expected: '2025-07-26'
-                    },
-                    {
-                        task_id: 'demo_2', 
-                        task_item: 'Provide cost breakdown analysis',
-                        assignee_full_names: 'Bryan Bui',
-                        assignee_emails: 'bryan@example.com',
-                        priority: 'Medium',
-                        brief_description: 'Bryan needs to provide detailed cost breakdown with justifications.',
-                        date_expected: '2025-07-25'
-                    }
-                ]
-            };
-            
-            tasks = sessionData.tasks.map(t => ({...t, status: 'reject'}));
-            render();
+            if (tasksParam) {
+                try {
+                    const taskData = {
+                        tasks: JSON.parse(decodeURIComponent(tasksParam)),
+                        meeting_title: titleParam || 'TaskForge Meeting',
+                        webhook_url: params.get('webhook') || webhookUrl
+                    };
+                    loadTasks(taskData);
+                    return true;
+                } catch (e) {
+                    console.error('Error parsing URL data:', e);
+                }
+            }
+            return false;
         }
 
-        function render() {
-            document.getElementById('meetingTitle').textContent = sessionData.meeting_title;
+        // Load demo data if no real data
+        function loadDemoData() {
+            setTimeout(() => {
+                const demoData = {
+                    meeting_title: 'TaskForge Demo Meeting',
+                    webhook_url: webhookUrl,
+                    tasks: [
+                        {
+                            task_id: 'demo_1',
+                            task_item: 'Review new Python SDK changes',
+                            assignee_full_names: 'Yang Zheng',
+                            assignee_emails: 'yang@coophive.network',
+                            priority: 'High',
+                            brief_description: 'Yang needs to review the Python SDK changes submitted at midnight.',
+                            date_expected: '2025-07-26'
+                        },
+                        {
+                            task_id: 'demo_2', 
+                            task_item: 'Provide cost breakdown analysis',
+                            assignee_full_names: 'Bryan Bui',
+                            assignee_emails: 'bryan@example.com',
+                            priority: 'Medium',
+                            brief_description: 'Bryan needs to provide detailed cost breakdown with justifications.',
+                            date_expected: '2025-07-25'
+                        }
+                    ]
+                };
+                loadTasks(demoData);
+            }, 2000);
+        }
+
+        function loadTasks(data) {
+            tasks = data.tasks.map(t => ({...t, status: 'reject'}));
+            webhookUrl = data.webhook_url || webhookUrl;
+            
+            document.getElementById('meetingTitle').textContent = data.meeting_title || 'TaskForge Meeting';
             document.getElementById('total').textContent = tasks.length;
             
             const container = document.getElementById('tasks');
@@ -92,6 +133,10 @@
                     </div>
                 </div>
             `).join('');
+            
+            // Show content, hide loading
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
             
             updateCounter();
         }
@@ -112,7 +157,6 @@
             const approved = tasks.filter(t => t.status === 'approve');
             
             const payload = {
-                session_id: sessionData.session_id,
                 approved_tasks: approved,
                 approved_count: approved.length,
                 total_tasks: tasks.length,
@@ -120,21 +164,35 @@
             };
 
             try {
-                await fetch(sessionData.webhook_url, {
+                const response = await fetch(webhookUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 
-                alert(`✅ Success! ${approved.length} tasks sent to TaskForge`);
-                window.close();
+                if (response.ok) {
+                    // Show success and auto-close
+                    document.getElementById('content').style.display = 'none';
+                    document.getElementById('success').style.display = 'block';
+                    
+                    setTimeout(() => {
+                        window.close();
+                    }, 3000);
+                } else {
+                    alert('❌ Error submitting to TaskForge');
+                }
             } catch (error) {
                 alert('❌ Error: ' + error.message);
             }
         }
 
-        // Initialize when page loads
-        init();
+        // Initialize - check for URL data first, then demo
+        if (!checkUrlData()) {
+            loadDemoData();
+        }
+
+        // Expose function for N8N to call directly
+        window.receiveTaskData = loadTasks;
     </script>
 </body>
 </html>
