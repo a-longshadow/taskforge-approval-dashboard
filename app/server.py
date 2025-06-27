@@ -16,22 +16,33 @@ def serve_index():
 
 @app.route('/store-tasks', methods=['POST'])
 def store_tasks():
-    """Store tasks from n8n for HITL approval"""
+    """Store Monday.com tasks from n8n for HITL approval"""
     try:
         data = request.get_json()
         execution_id = data.get('execution_id')
+        monday_tasks = data.get('monday_tasks', [])
         
         if not execution_id:
             return jsonify({'error': 'No execution_id provided'}), 400
             
-        stored_tasks[execution_id] = data
-        print(f"📦 Stored tasks for execution: {execution_id}")
-        print(f"📋 Tasks count: {data.get('total_tasks', 0)}")
+        if not monday_tasks:
+            return jsonify({'error': 'No monday_tasks provided'}), 400
+            
+        # Store the complete Monday.com payload
+        stored_tasks[execution_id] = {
+            'execution_id': execution_id,
+            'monday_tasks': monday_tasks,
+            'meeting_title': data.get('meeting_title', 'TaskForge Meeting'),
+            'total_tasks': len(monday_tasks),
+            'stored_at': data.get('created_at')
+        }
+        
+        print(f"📦 Stored {len(monday_tasks)} Monday.com tasks for execution: {execution_id}")
         
         return jsonify({
             'success': True, 
             'execution_id': execution_id,
-            'stored_tasks': data.get('total_tasks', 0)
+            'stored_tasks': len(monday_tasks)
         })
         
     except Exception as e:
@@ -71,17 +82,30 @@ def get_approved(execution_id):
 
 @app.route('/submit-approval', methods=['POST'])
 def submit_approval():
-    """Store approved tasks from UI"""
+    """Store Monday.com tasks with approval status from UI"""
     try:
         data = request.get_json()
         execution_id = data.get('execution_id')
+        monday_tasks_with_approval = data.get('monday_tasks_with_approval', [])
         
         if not execution_id:
             return jsonify({'error': 'No execution_id provided'}), 400
             
-        approved_results[execution_id] = data
-        print(f"✅ Stored approved results for execution: {execution_id}")
-        print(f"📊 Approved tasks: {data.get('approved_count', 0)}")
+        # Filter to get only approved tasks (approved: true)
+        approved_monday_tasks = [task for task in monday_tasks_with_approval if task.get('approved') == True]
+        
+        # Store result for n8n to retrieve
+        approved_results[execution_id] = {
+            'execution_id': execution_id,
+            'approved_monday_tasks': approved_monday_tasks,  # Only TRUE tasks
+            'approved_count': len(approved_monday_tasks),
+            'total_tasks': len(monday_tasks_with_approval),
+            'timestamp': data.get('timestamp'),
+            'source': 'TaskForge_HITL_Railway'
+        }
+        
+        print(f"✅ Processed {len(monday_tasks_with_approval)} tasks for execution: {execution_id}")
+        print(f"📊 Approved: {len(approved_monday_tasks)} tasks")
         
         return jsonify({'success': True})
         

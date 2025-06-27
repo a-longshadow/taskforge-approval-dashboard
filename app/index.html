@@ -265,21 +265,19 @@
             }
         }
 
-        function groupTasksByMeeting(tasks) {
+        function groupTasksByMeeting(mondayTasks) {
             const grouped = {};
             
-            tasks.forEach(task => {
-                // Use actual meeting data from the task
-                const meetingId = task.meeting_id || task.meeting_title || `meeting_${task.task_id.split('_')[1]}` || 'default_meeting';
+            mondayTasks.forEach(task => {
+                const meetingId = 'main_meeting';
                 const meetingTitle = task.meeting_title || 'TaskForge Meeting';
-                const meetingOrganizer = task.meeting_organizer || task.organizer_email || 'Unknown';
-                const meetingDate = task.meeting_date || task.date || new Date().toISOString();
+                const meetingOrganizer = task.meeting_organizer || 'TaskForge System';
                 
                 if (!grouped[meetingId]) {
                     grouped[meetingId] = {
                         title: fixEncoding(meetingTitle),
                         organizer: meetingOrganizer,
-                        date: meetingDate,
+                        date: new Date().toISOString(),
                         tasks: []
                     };
                 }
@@ -288,8 +286,9 @@
                     ...task,
                     task_item: fixEncoding(task.task_item),
                     brief_description: fixEncoding(task.brief_description),
-                    assignee_full_names: fixEncoding(task.assignee_full_names),
-                    status: 'pending'
+                    'assignee(s)_full_names': fixEncoding(task['assignee(s)_full_names']),
+                    status: 'pending',
+                    approved: null  // Will be set to true/false
                 };
                 
                 grouped[meetingId].tasks.push(cleanTask);
@@ -328,7 +327,7 @@
                     <div class="task-title">${task.task_item}</div>
                     
                     <div class="task-meta">
-                        <div>👤 ${task.assignee_full_names}</div>
+                        <div>👤 ${task['assignee(s)_full_names']}</div>
                         <div>📧 ${task.assignee_emails}</div>
                         <div>📅 ${task.date_expected}</div>
                         <div>🔥 ${task.priority} Priority</div>
@@ -353,6 +352,7 @@
         function setTaskStatus(meetingId, taskIndex, status) {
             const task = tasksByMeeting[meetingId].tasks[taskIndex];
             task.status = status;
+            task.approved = (status === 'approve');  // Set TRUE/FALSE
             
             const taskId = `${meetingId}_${taskIndex}`;
             const taskElement = document.getElementById(`task_${taskId}`);
@@ -384,12 +384,12 @@
                 const data = await response.json();
                 console.log('📦 Received data:', data);
                 
-                if (data.tasks && data.tasks.length > 0) {
-                    totalTasks = data.tasks.length;
+                if (data.monday_tasks && data.monday_tasks.length > 0) {
+                    totalTasks = data.monday_tasks.length;
                     document.getElementById('totalCount').textContent = totalTasks;
                     document.getElementById('meetingTitle').textContent = fixEncoding(data.meeting_title || 'TaskForge Meeting');
                     
-                    tasksByMeeting = groupTasksByMeeting(data.tasks);
+                    tasksByMeeting = groupTasksByMeeting(data.monday_tasks);
                     renderMeetings();
                     
                     document.getElementById('loading').style.display = 'none';
@@ -410,37 +410,27 @@
             console.log('🚀 Starting submission process...');
             
             const params = getUrlParams();
-            const approvedTasks = [];
+            const allTasksWithApproval = [];
             
             Object.entries(tasksByMeeting).forEach(([meetingId, meeting]) => {
                 meeting.tasks.forEach(task => {
-                    if (task.status === 'approve') {
-                        approvedTasks.push({
-                            ...task,
-                            meeting_context: {
-                                id: meetingId,
-                                title: meeting.title,
-                                organizer: meeting.organizer,
-                                date: meeting.date
-                            },
-                            approved_at: new Date().toISOString()
-                        });
-                    }
+                    // Send ALL tasks with their approval status (TRUE/FALSE)
+                    allTasksWithApproval.push({
+                        ...task,
+                        approved: (task.status === 'approve'),  // TRUE or FALSE
+                        processed_at: new Date().toISOString()
+                    });
                 });
             });
 
-            console.log(`📊 Found ${approvedTasks.length} approved tasks out of ${totalTasks} total`);
-
-            if (approvedTasks.length === 0) {
-                alert('Please approve at least one task before submitting.');
-                return;
-            }
+            const approvedCount = allTasksWithApproval.filter(task => task.approved === true).length;
+            console.log(`📊 Found ${approvedCount} approved tasks out of ${totalTasks} total`);
 
             try {
                 const payload = {
                     execution_id: params.exec_id || `hitl_${Date.now()}`,
-                    approved_tasks: approvedTasks,
-                    approved_count: approvedTasks.length,
+                    monday_tasks_with_approval: allTasksWithApproval,  // ALL tasks with TRUE/FALSE
+                    approved_count: approvedCount,
                     total_tasks: totalTasks,
                     timestamp: new Date().toISOString(),
                     source: 'TaskForge_HITL_Dashboard'
