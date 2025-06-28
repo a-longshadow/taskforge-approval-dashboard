@@ -3,6 +3,8 @@ from flask import Flask, send_from_directory, request, jsonify
 import os
 import requests
 import json
+import graphene
+from flask_graphql import GraphQLView
 
 app = Flask(__name__)
 
@@ -10,9 +12,225 @@ app = Flask(__name__)
 stored_tasks = {}
 approved_results = {}
 
+# GraphQL Schema Definitions
+class TaskType(graphene.ObjectType):
+    task_id = graphene.String()
+    name = graphene.String()
+    assignee_full_names = graphene.String()
+    assignee_emails = graphene.String()
+    priority = graphene.String()
+    brief_description = graphene.String()
+    date_expected = graphene.String()
+    approved = graphene.Boolean()
+
+class MeetingType(graphene.ObjectType):
+    execution_id = graphene.String()
+    meeting_title = graphene.String()
+    meeting_organizer = graphene.String()
+    total_tasks = graphene.Int()
+    stored_at = graphene.String()
+    monday_tasks = graphene.List(TaskType)
+
+class ApprovalResultType(graphene.ObjectType):
+    execution_id = graphene.String()
+    approved_count = graphene.Int()
+    total_tasks = graphene.Int()
+    timestamp = graphene.String()
+    source = graphene.String()
+    approved_monday_tasks = graphene.List(TaskType)
+
+# GraphQL Queries
+class Query(graphene.ObjectType):
+    # Get stored tasks by execution ID
+    meeting = graphene.Field(MeetingType, execution_id=graphene.String(required=True))
+    
+    # Get all stored meetings
+    meetings = graphene.List(MeetingType)
+    
+    # Get approved results
+    approved_tasks = graphene.Field(ApprovalResultType, execution_id=graphene.String(required=True))
+    
+    # Health check
+    health = graphene.String()
+
+    def resolve_meeting(self, info, execution_id):
+        if execution_id in stored_tasks:
+            data = stored_tasks[execution_id]
+            # Convert monday_tasks to TaskType objects
+            tasks = []
+            for task in data.get('monday_tasks', []):
+                if isinstance(task, dict) and 'columnValues' in task:
+                    # Handle Monday.com format
+                    tasks.append(TaskType(
+                        task_id=task.get('task_id'),
+                        name=task.get('name'),
+                        assignee_full_names=task.get('columnValues', {}).get('text_mkr7jgkp'),
+                        assignee_emails=task.get('columnValues', {}).get('text_mkr0hqsb'),
+                        priority=task.get('columnValues', {}).get('status_1'),
+                        brief_description=task.get('columnValues', {}).get('long_text'),
+                        date_expected=task.get('columnValues', {}).get('date_mkr7ymmh')
+                    ))
+                else:
+                    # Handle simple format
+                    tasks.append(TaskType(
+                        task_id=task.get('task_id'),
+                        name=task.get('task_item'),
+                        assignee_full_names=task.get('assignee(s)_full_names'),
+                        assignee_emails=task.get('assignee_emails'),
+                        priority=task.get('priority'),
+                        brief_description=task.get('brief_description'),
+                        date_expected=task.get('date_expected')
+                    ))
+            
+            return MeetingType(
+                execution_id=data.get('execution_id'),
+                meeting_title=data.get('meeting_title'),
+                meeting_organizer=data.get('meeting_organizer'),
+                total_tasks=data.get('total_tasks'),
+                stored_at=data.get('stored_at'),
+                monday_tasks=tasks
+            )
+        return None
+
+    def resolve_meetings(self, info):
+        meetings = []
+        for execution_id, data in stored_tasks.items():
+            meetings.append(MeetingType(
+                execution_id=data.get('execution_id'),
+                meeting_title=data.get('meeting_title'),
+                meeting_organizer=data.get('meeting_organizer'),
+                total_tasks=data.get('total_tasks'),
+                stored_at=data.get('stored_at')
+            ))
+        return meetings
+
+    def resolve_approved_tasks(self, info, execution_id):
+        if execution_id in approved_results:
+            data = approved_results[execution_id]
+            tasks = []
+            for task in data.get('approved_monday_tasks', []):
+                tasks.append(TaskType(
+                    task_id=task.get('task_id'),
+                    name=task.get('name'),
+                    assignee_full_names=task.get('assignee_full_names'),
+                    assignee_emails=task.get('assignee_emails'),
+                    priority=task.get('priority'),
+                    brief_description=task.get('brief_description'),
+                    date_expected=task.get('date_expected'),
+                    approved=True
+                ))
+            
+            return ApprovalResultType(
+                execution_id=data.get('execution_id'),
+                approved_count=data.get('approved_count'),
+                total_tasks=data.get('total_tasks'),
+                timestamp=data.get('timestamp'),
+                source=data.get('source'),
+                approved_monday_tasks=tasks
+            )
+        return None
+
+    def resolve_health(self, info):
+        return f"TaskForge GraphQL API is running! Stored meetings: {len(stored_tasks)}, Approved results: {len(approved_results)}"
+
+# GraphQL Mutations
+class StoreTasksMutation(graphene.Mutation):
+    class Arguments:
+        execution_id = graphene.String(required=True)
+        meeting_title = graphene.String()
+        meeting_organizer = graphene.String()
+        monday_tasks = graphene.String(required=True)  # JSON string
+        created_at = graphene.String()
+
+    success = graphene.Boolean()
+    execution_id = graphene.String()
+    stored_tasks_count = graphene.Int()
+    message = graphene.String()
+
+    def mutate(self, info, execution_id, monday_tasks, meeting_title=None, meeting_organizer=None, created_at=None):
+        try:
+            # Parse monday_tasks JSON string
+            tasks_data = json.loads(monday_tasks)
+            
+            stored_tasks[execution_id] = {
+                'execution_id': execution_id,
+                'monday_tasks': tasks_data,
+                'meeting_title': meeting_title or 'TaskForge Meeting',
+                'meeting_organizer': meeting_organizer,
+                'total_tasks': len(tasks_data),
+                'stored_at': created_at
+            }
+            
+            print(f"📦 GraphQL: Stored {len(tasks_data)} tasks for execution: {execution_id}")
+            
+            return StoreTasksMutation(
+                success=True,
+                execution_id=execution_id,
+                stored_tasks_count=len(tasks_data),
+                message=f"Successfully stored {len(tasks_data)} tasks"
+            )
+        except Exception as e:
+            return StoreTasksMutation(
+                success=False,
+                message=f"Error storing tasks: {str(e)}"
+            )
+
+class SubmitApprovalMutation(graphene.Mutation):
+    class Arguments:
+        execution_id = graphene.String(required=True)
+        monday_tasks_with_approval = graphene.String(required=True)  # JSON string
+        timestamp = graphene.String()
+
+    success = graphene.Boolean()
+    approved_count = graphene.Int()
+    total_tasks = graphene.Int()
+    message = graphene.String()
+
+    def mutate(self, info, execution_id, monday_tasks_with_approval, timestamp=None):
+        try:
+            # Parse tasks with approval JSON string
+            tasks_data = json.loads(monday_tasks_with_approval)
+            
+            # Filter approved tasks
+            approved_tasks = [task for task in tasks_data if task.get('approved') == True]
+            
+            approved_results[execution_id] = {
+                'execution_id': execution_id,
+                'approved_monday_tasks': approved_tasks,
+                'approved_count': len(approved_tasks),
+                'total_tasks': len(tasks_data),
+                'timestamp': timestamp,
+                'source': 'TaskForge_HITL_GraphQL'
+            }
+            
+            print(f"✅ GraphQL: Processed {len(tasks_data)} tasks, approved {len(approved_tasks)}")
+            
+            return SubmitApprovalMutation(
+                success=True,
+                approved_count=len(approved_tasks),
+                total_tasks=len(tasks_data),
+                message="Approval submitted successfully"
+            )
+        except Exception as e:
+            return SubmitApprovalMutation(
+                success=False,
+                message=f"Error submitting approval: {str(e)}"
+            )
+
+class Mutation(graphene.ObjectType):
+    store_tasks = StoreTasksMutation.Field()
+    submit_approval = SubmitApprovalMutation.Field()
+
+# Create GraphQL Schema
+schema = graphene.Schema(query=Query, mutation=Mutation)
+
+# REST API Routes (existing)
 @app.route('/')
 def serve_index():
     return send_from_directory('.', 'index.html')
+
+# Add GraphQL endpoint
+app.add_url_rule('/graphql', view_func=GraphQLView.as_view('graphql', schema=schema, graphiql=True))
 
 @app.route('/store-tasks', methods=['POST'])
 def store_tasks():
