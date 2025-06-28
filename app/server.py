@@ -60,9 +60,18 @@ def get_tasks(execution_id):
     print(f"❌ Tasks not found for execution: {execution_id}")
     return jsonify({'error': 'Tasks not found'}), 404
 
-@app.route('/get-approved/<execution_id>', methods=['GET'])
-def get_approved(execution_id):
-    """Get approved tasks for n8n (with PROPER self-destruct)"""
+@app.route('/get-approved', methods=['GET', 'POST'])
+def get_approved():
+    """Get approved tasks for n8n (supports both GET and POST)"""
+    if request.method == 'POST':
+        data = request.get_json()
+        execution_id = data.get('execution_id')
+    else:
+        execution_id = request.args.get('execution_id')
+    
+    if not execution_id:
+        return jsonify({'error': 'No execution_id provided'}), 400
+    
     if execution_id in approved_results:
         result = approved_results.pop(execution_id)  # Remove from approved
         stored_tasks.pop(execution_id, None)  # Remove from stored
