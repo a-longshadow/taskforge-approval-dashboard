@@ -286,7 +286,8 @@ def get_tasks(execution_id):
         else:  # already a datetime object
             exp_dt = expires_at
 
-        if exp_dt < datetime.now():
+        now_dt = datetime.now(exp_dt.tzinfo) if hasattr(exp_dt, 'tzinfo') and exp_dt.tzinfo else datetime.now()
+        if exp_dt < now_dt:
             return jsonify({'error': 'Tasks have expired'}), 410
         
         data = {
