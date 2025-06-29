@@ -362,6 +362,7 @@ def submit_approval():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/get-approved', methods=['GET', 'POST'])
+@app.route('/approved', methods=['GET', 'POST'])
 def get_approved():
     """Get approved tasks for N8N (supports both GET and POST)"""
     try:

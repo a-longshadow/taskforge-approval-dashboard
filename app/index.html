@@ -866,14 +866,6 @@
                     throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
 
-                // 2️⃣ Forward to n8n webhook (fire-and-forget)
-                const N8N_WEBHOOK = 'https://levirybalov.app.n8n.cloud/webhook/90cd876b-a4ea-44c9-ad16-f7a9ea5c2fdd';
-                fetch(N8N_WEBHOOK, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }).catch(err => console.warn('⚠️ n8n webhook error (ignored):', err.message));
-
                 const responseData = await response.json();
                 console.log('✅ Success response:', responseData);
                 
