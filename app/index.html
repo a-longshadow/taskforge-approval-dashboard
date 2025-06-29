@@ -3,1099 +3,912 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TaskForge HITL Approval Dashboard</title>
+    <title>🚀 TaskForge HITL</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            color: #333;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
+            padding: 20px;
         }
-        
+
+        /* Header */
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             text-align: center;
         }
-        
+
         .header h1 {
-            font-size: 2.5em;
+            font-size: 2.5rem;
+            font-weight: 700;
             margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        
-        .header p {
-            font-size: 1.2em;
-            opacity: 0.9;
+
+        .header .subtitle {
+            color: #666;
+            font-size: 1.1rem;
         }
-        
-        .progress-section {
-            padding: 30px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
+
+        /* Progress Bar */
+        .progress-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
         }
-        
-        .progress-stats {
+
+        .progress-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 15px;
+            margin-bottom: 15px;
         }
-        
-        .stat-card {
-            background: white;
-            padding: 15px 25px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+        .progress-stats {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .stat {
             text-align: center;
-            min-width: 120px;
         }
-        
+
         .stat-number {
-            font-size: 2em;
-            font-weight: bold;
+            font-size: 1.8rem;
+            font-weight: 700;
             color: #667eea;
         }
-        
+
         .stat-label {
-            font-size: 0.9em;
-            color: #6c757d;
-            margin-top: 5px;
+            font-size: 0.9rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        
-        .progress-bar-container {
-            background: #e9ecef;
-            border-radius: 25px;
-            height: 20px;
+
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: #e0e0e0;
+            border-radius: 6px;
             overflow: hidden;
             position: relative;
         }
-        
-        .progress-bar {
-            background: linear-gradient(90deg, #28a745, #20c997);
+
+        .progress-fill {
             height: 100%;
-            border-radius: 25px;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            border-radius: 6px;
             transition: width 0.3s ease;
             width: 0%;
         }
-        
-        .progress-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 0.9em;
-            font-weight: bold;
-            color: #495057;
-        }
-        
+
+        /* Meeting Cards */
         .meetings-container {
-            padding: 30px;
-        }
-        
-        .meeting-card {
-            background: white;
-            border: 2px solid #e9ecef;
-            border-radius: 15px;
+            display: grid;
+            gap: 25px;
             margin-bottom: 30px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
         }
-        
+
+        .meeting-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
         .meeting-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
             border-color: #667eea;
         }
-        
+
         .meeting-header {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            padding: 25px;
-            border-bottom: 1px solid #dee2e6;
-        }
-        
-        .meeting-title {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: #495057;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .meeting-info {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
             margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
         }
-        
+
+        .meeting-title {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #333;
+        }
+
         .meeting-meta {
-            color: #6c757d;
-            font-size: 0.95em;
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
         }
-        
-        .meeting-stats {
-            display: flex;
-            gap: 20px;
-            align-items: center;
-        }
-        
-        .meeting-stat {
-            background: white;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            border: 1px solid #dee2e6;
-        }
-        
-        .bulk-actions {
+
+        .meeting-actions {
             display: flex;
             gap: 10px;
-            flex-wrap: wrap;
         }
-        
+
         .bulk-btn {
-            padding: 12px 25px;
+            padding: 8px 16px;
             border: none;
-            border-radius: 25px;
-            font-weight: bold;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.9em;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        
-        .bulk-approve {
-            background: linear-gradient(135deg, #28a745, #20c997);
+
+        .approve-all {
+            background: #4CAF50;
             color: white;
         }
-        
-        .bulk-approve:hover {
-            background: linear-gradient(135deg, #218838, #1c9b7e);
+
+        .approve-all:hover {
+            background: #45a049;
             transform: translateY(-2px);
         }
-        
-        .bulk-reject {
-            background: linear-gradient(135deg, #dc3545, #c82333);
+
+        .reject-all {
+            background: #f44336;
             color: white;
         }
-        
-        .bulk-reject:hover {
-            background: linear-gradient(135deg, #c82333, #a71e2a);
+
+        .reject-all:hover {
+            background: #da190b;
             transform: translateY(-2px);
         }
-        
-        .tasks-container {
-            padding: 0;
+
+        /* Task Items */
+        .tasks-list {
+            display: grid;
+            gap: 12px;
         }
-        
+
         .task-item {
-            border-bottom: 1px solid #f1f3f4;
-            padding: 20px 25px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 18px;
+            border: 2px solid transparent;
             transition: all 0.3s ease;
+            cursor: pointer;
             position: relative;
         }
-        
-        .task-item:last-child {
-            border-bottom: none;
-        }
-        
+
         .task-item:hover {
-            background: #f8f9fa;
+            transform: translateX(5px);
+            border-color: #667eea;
+            background: #fff;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
-        
+
         .task-item.approved {
-            background: linear-gradient(90deg, rgba(40, 167, 69, 0.1), rgba(32, 201, 151, 0.1));
-            border-left: 4px solid #28a745;
+            border-color: #4CAF50;
+            background: #f1f8e9;
         }
-        
+
         .task-item.rejected {
-            background: linear-gradient(90deg, rgba(220, 53, 69, 0.1), rgba(200, 35, 51, 0.1));
-            border-left: 4px solid #dc3545;
+            border-color: #f44336;
+            background: #ffebee;
         }
-        
-        .task-content {
+
+        .task-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            gap: 20px;
+            margin-bottom: 10px;
         }
-        
-        .task-details {
-            flex: 1;
-        }
-        
+
         .task-title {
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #495057;
-            margin-bottom: 8px;
-            line-height: 1.4;
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #333;
+            flex: 1;
+            margin-right: 15px;
         }
-        
+
+        .task-priority {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .priority-high {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .priority-medium {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .priority-low {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
         .task-meta {
             display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 10px;
-            font-size: 0.9em;
-            color: #6c757d;
-        }
-        
-        .task-meta span {
-            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 5px;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            color: #666;
         }
-        
+
         .task-description {
-            color: #6c757d;
-            font-size: 0.95em;
+            color: #555;
             line-height: 1.5;
-            margin-top: 10px;
+            margin-bottom: 15px;
         }
-        
+
         .task-actions {
             display: flex;
             gap: 10px;
-            flex-shrink: 0;
-            align-items: flex-start;
+            justify-content: flex-end;
         }
-        
-        .task-btn {
-            padding: 10px 20px;
-            border: 2px solid;
-            border-radius: 25px;
-            font-weight: bold;
+
+        .action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.9em;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 100px;
-            justify-content: center;
+            transition: all 0.2s ease;
+            min-width: 80px;
         }
-        
-        .task-approve {
-            border-color: #28a745;
-            color: #28a745;
-            background: white;
-        }
-        
-        .task-approve:hover, .task-approve.active {
-            background: #28a745;
+
+        .approve-btn {
+            background: #4CAF50;
             color: white;
+        }
+
+        .approve-btn:hover {
+            background: #45a049;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
         }
-        
-        .task-reject {
-            border-color: #dc3545;
-            color: #dc3545;
-            background: white;
-        }
-        
-        .task-reject:hover, .task-reject.active {
-            background: #dc3545;
+
+        .reject-btn {
+            background: #f44336;
             color: white;
+        }
+
+        .reject-btn:hover {
+            background: #da190b;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
         }
-        
-        .priority-badge {
-            padding: 4px 12px;
-            border-radius: 15px;
-            font-size: 0.8em;
-            font-weight: bold;
-            text-transform: uppercase;
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
         }
-        
-        .priority-high {
-            background: #fff5f5;
-            color: #c53030;
-            border: 1px solid #fed7d7;
-        }
-        
-        .priority-medium {
-            background: #fffbf0;
-            color: #d69e2e;
-            border: 1px solid #feebc8;
-        }
-        
-        .priority-low {
-            background: #f0fff4;
-            color: #38a169;
-            border: 1px solid #c6f6d5;
-        }
-        
+
+        /* Submit Section */
         .submit-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
             padding: 30px;
-            background: #f8f9fa;
-            border-top: 1px solid #e9ecef;
             text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
-        
+
         .submit-btn {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
             padding: 15px 40px;
-            border-radius: 30px;
-            font-size: 1.1em;
-            font-weight: bold;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            min-width: 200px;
         }
-        
+
         .submit-btn:hover {
             transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
         }
-        
+
         .submit-btn:disabled {
-            background: #6c757d;
+            opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
+            transform: none !important;
         }
-        
+
+        /* States */
         .loading {
-            display: none;
-            text-align: center;
-            padding: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            color: white;
         }
-        
+
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
             width: 50px;
             height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+            margin-bottom: 20px;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
+        .waiting-state {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .waiting-state h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 2rem;
+        }
+
+        .waiting-state p {
+            color: #666;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .error-state {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #f44336;
+        }
+
+        .error-state h2 {
+            color: #f44336;
+            margin-bottom: 15px;
+        }
+
+        .success-state {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #4CAF50;
+        }
+
+        .success-state h2 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+            font-size: 2rem;
+        }
+
+        /* Notifications */
         .notification {
             position: fixed;
             top: 20px;
             right: 20px;
-            padding: 15px 25px;
+            padding: 15px 20px;
             border-radius: 10px;
             color: white;
-            font-weight: bold;
+            font-weight: 600;
             z-index: 1000;
             transform: translateX(400px);
             transition: transform 0.3s ease;
         }
-        
+
         .notification.show {
             transform: translateX(0);
         }
-        
+
         .notification.success {
-            background: #28a745;
+            background: #4CAF50;
         }
-        
+
         .notification.error {
-            background: #dc3545;
+            background: #f44336;
         }
-        
+
         .notification.info {
-            background: #17a2b8;
+            background: #2196F3;
         }
-        
-        .timeout-warning {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            color: #856404;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
+
+        /* Responsive */
         @media (max-width: 768px) {
             .container {
-                margin: 10px;
-                border-radius: 10px;
+                padding: 15px;
             }
-            
-            .header {
-                padding: 20px;
-            }
-            
+
             .header h1 {
-                font-size: 2em;
+                font-size: 2rem;
             }
-            
+
             .progress-stats {
-                justify-content: center;
-            }
-            
-            .task-content {
-                flex-direction: column;
                 gap: 15px;
             }
-            
-            .task-actions {
-                align-self: stretch;
-                justify-content: center;
-            }
-            
-            .meeting-info {
+
+            .meeting-header {
                 flex-direction: column;
                 align-items: flex-start;
+                gap: 15px;
             }
-            
-            .bulk-actions {
-                justify-content: center;
+
+            .task-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .task-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
             }
         }
 
-        /* Waiting State Styles */
-        .waiting-state {
-            text-align: center;
-            padding: 80px 40px;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border-radius: 16px;
-            margin: 40px;
-            border: 2px dashed #6c757d;
-        }
-
-        .waiting-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            animation: pulse 2s infinite;
-        }
-
-        .waiting-state h2 {
-            color: #495057;
-            margin-bottom: 16px;
-            font-size: 1.5rem;
-        }
-
-        .waiting-state p {
-            color: #6c757d;
-            margin-bottom: 12px;
-            font-size: 1.1rem;
-        }
-
-        .waiting-details {
-            background: rgba(255, 255, 255, 0.8);
-            padding: 20px;
-            border-radius: 8px;
-            margin-top: 30px;
-            display: inline-block;
-            text-align: left;
-        }
-
-        .waiting-details div {
-            margin: 8px 0;
-            color: #495057;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Header -->
         <div class="header">
-            <h1>🔥 TaskForge HITL Approval</h1>
-            <p id="header-subtitle">Loading task data...</p>
+            <h1>🚀 TaskForge HITL</h1>
+            <div class="subtitle">Human-in-the-Loop Task Approval System</div>
         </div>
-        
-        <div class="loading" id="loading">
+
+        <!-- Loading State -->
+        <div id="loading" class="loading">
             <div class="spinner"></div>
-            <p>Loading your tasks...</p>
+            <h2>Loading tasks...</h2>
+            <p>Fetching your action items for review...</p>
         </div>
-        
-        <div id="main-content" style="display: none;">
-            <div class="progress-section">
-                <div class="timeout-warning" id="timeout-warning" style="display: none;">
-                    ⏰ <strong>Time Sensitive:</strong> This approval will auto-submit in <span id="countdown">15:00</span> minutes
+
+        <!-- Waiting State -->
+        <div id="waiting" class="waiting-state hidden">
+            <h2>⏳ Waiting for Admin</h2>
+            <p>No approval requests pending at this time.</p>
+            <p style="margin-top: 10px; font-size: 0.9rem; color: #999;">This page will automatically load tasks when available.</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error" class="error-state hidden">
+            <h2>❌ Error</h2>
+            <p id="error-message">Failed to load tasks. Please try again.</p>
+        </div>
+
+        <!-- Main Content -->
+        <div id="content" class="hidden">
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress-header">
+                    <h3>Approval Progress</h3>
+                    <div class="progress-stats">
+                        <div class="stat">
+                            <div class="stat-number" id="approved-count">0</div>
+                            <div class="stat-label">Approved</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number" id="total-count">0</div>
+                            <div class="stat-label">Total</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number" id="meeting-count">0</div>
+                            <div class="stat-label">Meetings</div>
+                        </div>
+                    </div>
                 </div>
-                
-                <div class="progress-stats">
-                    <div class="stat-card">
-                        <div class="stat-number" id="total-meetings">0</div>
-                        <div class="stat-label">Meetings</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="total-tasks">0</div>
-                        <div class="stat-label">Total Tasks</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="approved-count">0</div>
-                        <div class="stat-label">Approved</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="rejected-count">0</div>
-                        <div class="stat-label">Rejected</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number" id="pending-count">0</div>
-                        <div class="stat-label">Pending</div>
-                    </div>
-                </div>
-                
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="progress-bar"></div>
-                    <div class="progress-text" id="progress-text">0% Complete</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
                 </div>
             </div>
-            
+
+            <!-- Meetings Container -->
             <div class="meetings-container" id="meetings-container">
                 <!-- Meeting cards will be dynamically generated here -->
             </div>
-            
+
+            <!-- Submit Section -->
             <div class="submit-section">
-                <button class="submit-btn" id="submit-btn" onclick="submitApproval()">
-                    💾 Save Changes & Submit to N8N
+                <button class="submit-btn" id="submit-btn" onclick="submitApprovals()">
+                    💾 Submit to TaskForge
                 </button>
-                <p style="margin-top: 15px; color: #6c757d; font-size: 0.9em;">
-                    Only approved tasks will be sent to Monday.com
+                <p style="margin-top: 15px; color: #666; font-size: 0.9rem;">
+                    Your approved tasks will be sent to N8N for processing
                 </p>
             </div>
         </div>
+
+        <!-- Success State -->
+        <div id="success" class="success-state hidden">
+            <h2>✅ Success!</h2>
+            <p>Your approved tasks have been submitted to TaskForge.</p>
+            <p style="margin-top: 15px; color: #666;">This window will close automatically in 3 seconds.</p>
+        </div>
     </div>
 
+    <!-- Notification Container -->
+    <div id="notification" class="notification"></div>
+
     <script>
-        // Global state management
-        let taskData = null;
-        let taskStates = {}; // Track individual task approval states
-        let countdownTimer = null;
-        let timeoutMinutes = 15;
-        
-        // Initialize the application
-        document.addEventListener('DOMContentLoaded', function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const execId = urlParams.get('exec_id');
+        // Global variables
+        let tasksByMeeting = {};
+        let totalTasks = 0;
+        let approvedCount = 0;
+        let executionId = null;
+
+        // Utility functions
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                exec_id: params.get('exec_id')
+            };
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
             
-            if (!execId) {
-                // Production behavior: Show waiting state instead of error
-                showWaitingState();
-                return;
-            }
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function updateProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            const approvedCountEl = document.getElementById('approved-count');
             
-            loadTaskData(execId);
-        });
-        
-        // Load task data from server
-        async function loadTaskData(execId) {
-            try {
-                showLoading(true);
+            const percentage = totalTasks > 0 ? (approvedCount / totalTasks) * 100 : 0;
+            progressFill.style.width = `${percentage}%`;
+            approvedCountEl.textContent = approvedCount;
+        }
+
+        function groupTasksByMeeting(tasks) {
+            const grouped = {};
+            
+            tasks.forEach(task => {
+                const meetingId = task.meeting_id || 'unknown';
                 
-                const response = await fetch(`/get-tasks/${execId}`);
-                if (!response.ok) {
-                    throw new Error(`Server error: ${response.status}`);
+                if (!grouped[meetingId]) {
+                    grouped[meetingId] = {
+                        meeting_title: task.meeting_title || 'Unknown Meeting',
+                        meeting_organizer: task.meeting_organizer || 'Unknown',
+                        meeting_date: task.meeting_date || '',
+                        meeting_id: meetingId,
+                        tasks: []
+                    };
                 }
                 
-                taskData = await response.json();
-                initializeTaskStates();
-                renderUI();
-                startCountdown();
-                showLoading(false);
-                
-                showNotification('Tasks loaded successfully!', 'success');
-                
-            } catch (error) {
-                console.error('Error loading tasks:', error);
-                showNotification(`Failed to load tasks: ${error.message}`, 'error');
-                showLoading(false);
-            }
+                // Add approval state
+                task.approved = false;
+                grouped[meetingId].tasks.push(task);
+            });
+            
+            return grouped;
         }
-        
-        // Initialize task states tracking
-        function initializeTaskStates() {
-            taskStates = {};
-            
-            if (taskData.meetings) {
-                taskData.meetings.forEach(meeting => {
-                    meeting.tasks.forEach((task, index) => {
-                        const taskId = `${meeting.meeting_id}_${index}`;
-                        taskStates[taskId] = {
-                            approved: false,
-                            rejected: false,
-                            task: task,
-                            meetingId: meeting.meeting_id
-                        };
-                    });
-                });
-            }
-            
-            updateStatistics();
-        }
-        
-        // Render the complete UI
-        function renderUI() {
-            if (!taskData || !taskData.meetings) {
-                showNotification('No meeting data found', 'error');
-                return;
-            }
-            
-            // Update header
-            document.getElementById('header-subtitle').textContent = 
-                `${taskData.meetings.length} meetings • ${taskData.total_tasks || 0} tasks • Execution: ${taskData.execution_id}`;
-            
-            // Show timeout warning
-            document.getElementById('timeout-warning').style.display = 'block';
-            
-            // Render meetings
+
+        function renderMeetings() {
             const container = document.getElementById('meetings-container');
             container.innerHTML = '';
             
-            taskData.meetings.forEach((meeting, meetingIndex) => {
-                const meetingCard = createMeetingCard(meeting, meetingIndex);
+            Object.entries(tasksByMeeting).forEach(([meetingId, meeting]) => {
+                const meetingCard = createMeetingCard(meeting);
                 container.appendChild(meetingCard);
             });
             
-            updateStatistics();
+            // Update meeting count
+            document.getElementById('meeting-count').textContent = Object.keys(tasksByMeeting).length;
         }
-        
-        // Create individual meeting card
-        function createMeetingCard(meeting, meetingIndex) {
+
+        function createMeetingCard(meeting) {
             const card = document.createElement('div');
             card.className = 'meeting-card';
+            
+            const meetingDate = meeting.meeting_date ? new Date(parseInt(meeting.meeting_date)).toLocaleDateString() : 'Unknown date';
+            
             card.innerHTML = `
                 <div class="meeting-header">
-                    <div class="meeting-title">
-                        📋 ${meeting.meeting_title}
-                        <span class="priority-badge priority-high">${meeting.tasks.length} Tasks</span>
-                    </div>
-                    <div class="meeting-info">
+                    <div>
+                        <div class="meeting-title">${meeting.meeting_title}</div>
                         <div class="meeting-meta">
-                            <div>👤 <strong>Organizer:</strong> ${meeting.meeting_organizer}</div>
-                            <div>📅 <strong>Date:</strong> ${new Date(parseInt(meeting.meeting_date)).toLocaleDateString()}</div>
-                            <div>🆔 <strong>ID:</strong> ${meeting.meeting_id}</div>
-                        </div>
-                        <div class="meeting-stats">
-                            <div class="meeting-stat">
-                                ✅ <span id="meeting-approved-${meetingIndex}">0</span> Approved
-                            </div>
-                            <div class="meeting-stat">
-                                ❌ <span id="meeting-rejected-${meetingIndex}">0</span> Rejected
-                            </div>
-                            <div class="meeting-stat">
-                                ⏳ <span id="meeting-pending-${meetingIndex}">${meeting.tasks.length}</span> Pending
-                            </div>
+                            📧 ${meeting.meeting_organizer} • 📅 ${meetingDate} • 📋 ${meeting.tasks.length} tasks
                         </div>
                     </div>
-                    <div class="bulk-actions">
-                        <button class="bulk-btn bulk-approve" onclick="bulkAction('${meeting.meeting_id}', true)">
-                            ✅ Approve All ${meeting.tasks.length} Tasks
+                    <div class="meeting-actions">
+                        <button class="bulk-btn approve-all" onclick="bulkApprove('${meeting.meeting_id}', true)">
+                            ✅ Approve All
                         </button>
-                        <button class="bulk-btn bulk-reject" onclick="bulkAction('${meeting.meeting_id}', false)">
-                            ❌ Reject All ${meeting.tasks.length} Tasks
+                        <button class="bulk-btn reject-all" onclick="bulkApprove('${meeting.meeting_id}', false)">
+                            ❌ Reject All
                         </button>
                     </div>
                 </div>
-                <div class="tasks-container">
-                    ${meeting.tasks.map((task, taskIndex) => createTaskItem(task, meeting.meeting_id, taskIndex, meetingIndex)).join('')}
+                <div class="tasks-list">
+                    ${meeting.tasks.map((task, index) => createTaskItem(task, meeting.meeting_id, index)).join('')}
                 </div>
             `;
             
             return card;
         }
-        
-        // Create individual task item
-        function createTaskItem(task, meetingId, taskIndex, meetingIndex) {
-            const taskId = `${meetingId}_${taskIndex}`;
-            const priorityClass = `priority-${(task.priority || 'medium').toLowerCase()}`;
+
+        function createTaskItem(task, meetingId, taskIndex) {
+            const priorityClass = `priority-${task.priority?.toLowerCase() || 'medium'}`;
             
             return `
-                <div class="task-item" id="task-${taskId}" data-task-id="${taskId}">
-                    <div class="task-content">
-                        <div class="task-details">
-                            <div class="task-title">${task.task_item}</div>
-                            <div class="task-meta">
-                                <span>👤 ${task['assignee(s)_full_names']}</span>
-                                <span>📧 ${task.assignee_emails}</span>
-                                <span>📅 ${task.date_expected}</span>
-                                <span class="priority-badge ${priorityClass}">${task.priority || 'Medium'}</span>
-                            </div>
-                            <div class="task-description">${task.brief_description}</div>
-                        </div>
-                        <div class="task-actions">
-                            <button class="task-btn task-approve" 
-                                    id="approve-${taskId}"
-                                    onclick="toggleTaskState('${taskId}', true)">
-                                ✅ Approve
-                            </button>
-                            <button class="task-btn task-reject" 
-                                    id="reject-${taskId}"
-                                    onclick="toggleTaskState('${taskId}', false)">
-                                ❌ Reject
-                            </button>
-                        </div>
+                <div class="task-item" id="task-${meetingId}-${taskIndex}">
+                    <div class="task-header">
+                        <div class="task-title">${task.task_item || 'Untitled Task'}</div>
+                        <div class="task-priority ${priorityClass}">${task.priority || 'Medium'}</div>
                     </div>
-                </div>
-            `;
-        }
-        
-        // Toggle individual task state
-        function toggleTaskState(taskId, approve) {
-            if (!taskStates[taskId]) return;
-            
-            const taskState = taskStates[taskId];
-            const taskElement = document.getElementById(`task-${taskId}`);
-            const approveBtn = document.getElementById(`approve-${taskId}`);
-            const rejectBtn = document.getElementById(`reject-${taskId}`);
-            
-            if (approve) {
-                // Approve this task
-                taskState.approved = !taskState.approved;
-                taskState.rejected = false;
-                
-                approveBtn.classList.toggle('active', taskState.approved);
-                rejectBtn.classList.remove('active');
-                
-                taskElement.className = 'task-item' + (taskState.approved ? ' approved' : '');
-                
-            } else {
-                // Reject this task
-                taskState.rejected = !taskState.rejected;
-                taskState.approved = false;
-                
-                rejectBtn.classList.toggle('active', taskState.rejected);
-                approveBtn.classList.remove('active');
-                
-                taskElement.className = 'task-item' + (taskState.rejected ? ' rejected' : '');
-            }
-            
-            updateStatistics();
-            
-            // Show feedback
-            const action = approve ? (taskState.approved ? 'approved' : 'unmarked') : (taskState.rejected ? 'rejected' : 'unmarked');
-            showNotification(`Task ${action}`, 'info', 1000);
-        }
-        
-        // Bulk approve/reject for a meeting
-        function bulkAction(meetingId, approve) {
-            let count = 0;
-            
-            Object.keys(taskStates).forEach(taskId => {
-                if (taskStates[taskId].meetingId === meetingId) {
-                    const taskState = taskStates[taskId];
-                    const taskElement = document.getElementById(`task-${taskId}`);
-                    const approveBtn = document.getElementById(`approve-${taskId}`);
-                    const rejectBtn = document.getElementById(`reject-${taskId}`);
-                    
-                    if (approve) {
-                        taskState.approved = true;
-                        taskState.rejected = false;
-                        approveBtn.classList.add('active');
-                        rejectBtn.classList.remove('active');
-                        taskElement.className = 'task-item approved';
-                    } else {
-                        taskState.approved = false;
-                        taskState.rejected = true;
-                        approveBtn.classList.remove('active');
-                        rejectBtn.classList.add('active');
-                        taskElement.className = 'task-item rejected';
-                    }
-                    count++;
-                }
-            });
-            
-            updateStatistics();
-            
-            const action = approve ? 'approved' : 'rejected';
-            showNotification(`${count} tasks ${action} for this meeting`, 'success');
-        }
-        
-        // Update all statistics and progress
-        function updateStatistics() {
-            let totalTasks = 0;
-            let approvedCount = 0;
-            let rejectedCount = 0;
-            let pendingCount = 0;
-            
-            // Count overall statistics
-            Object.values(taskStates).forEach(state => {
-                totalTasks++;
-                if (state.approved) {
-                    approvedCount++;
-                } else if (state.rejected) {
-                    rejectedCount++;
-                } else {
-                    pendingCount++;
-                }
-            });
-            
-            // Update global stats
-            document.getElementById('total-meetings').textContent = taskData.meetings.length;
-            document.getElementById('total-tasks').textContent = totalTasks;
-            document.getElementById('approved-count').textContent = approvedCount;
-            document.getElementById('rejected-count').textContent = rejectedCount;
-            document.getElementById('pending-count').textContent = pendingCount;
-            
-            // Update progress bar
-            const progressPercent = totalTasks > 0 ? Math.round((approvedCount + rejectedCount) / totalTasks * 100) : 0;
-            document.getElementById('progress-bar').style.width = progressPercent + '%';
-            document.getElementById('progress-text').textContent = `${progressPercent}% Complete (${approvedCount} approved)`;
-            
-            // Update per-meeting statistics
-            taskData.meetings.forEach((meeting, meetingIndex) => {
-                let meetingApproved = 0;
-                let meetingRejected = 0;
-                let meetingPending = 0;
-                
-                meeting.tasks.forEach((task, taskIndex) => {
-                    const taskId = `${meeting.meeting_id}_${taskIndex}`;
-                    const state = taskStates[taskId];
-                    
-                    if (state.approved) meetingApproved++;
-                    else if (state.rejected) meetingRejected++;
-                    else meetingPending++;
-                });
-                
-                const approvedEl = document.getElementById(`meeting-approved-${meetingIndex}`);
-                const rejectedEl = document.getElementById(`meeting-rejected-${meetingIndex}`);
-                const pendingEl = document.getElementById(`meeting-pending-${meetingIndex}`);
-                
-                if (approvedEl) approvedEl.textContent = meetingApproved;
-                if (rejectedEl) rejectedEl.textContent = meetingRejected;
-                if (pendingEl) pendingEl.textContent = meetingPending;
-            });
-        }
-        
-        // Submit approval to N8N
-        async function submitApproval() {
-            const approvedTasks = [];
-            
-            // Collect only approved tasks
-            Object.values(taskStates).forEach(state => {
-                if (state.approved) {
-                    approvedTasks.push({
-                        ...state.task,
-                        approved: true,
-                        processed_at: new Date().toISOString()
-                    });
-                }
-            });
-            
-            if (approvedTasks.length === 0) {
-                showNotification('No tasks approved. Please approve at least one task.', 'error');
-                return;
-            }
-            
-            const submitBtn = document.getElementById('submit-btn');
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '⏳ Submitting...';
-            
-            try {
-                const payload = {
-                    execution_id: taskData.execution_id,
-                    monday_tasks_with_approval: approvedTasks,
-                    approved_count: approvedTasks.length,
-                    total_tasks: Object.keys(taskStates).length,
-                    timestamp: new Date().toISOString(),
-                    source: 'TaskForge_HITL_Individual_Approval'
-                };
-                
-                const response = await fetch('/submit-approval', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Server error: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                
-                showNotification(`✅ Success! ${approvedTasks.length} approved tasks sent to N8N`, 'success');
-                
-                // Clear countdown
-                if (countdownTimer) {
-                    clearInterval(countdownTimer);
-                }
-                
-                // EXTINGUISH UI - Replace everything with success message
-                extinguishUI(approvedTasks.length);
-                
-            } catch (error) {
-                console.error('Submission error:', error);
-                showNotification(`Failed to submit: ${error.message}`, 'error');
-                
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '💾 Save Changes & Submit to N8N';
-            }
-        }
-        
-        // Start countdown timer
-        function startCountdown() {
-            let totalSeconds = timeoutMinutes * 60;
-            
-            countdownTimer = setInterval(() => {
-                totalSeconds--;
-                
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                
-                document.getElementById('countdown').textContent = timeString;
-                
-                if (totalSeconds <= 0) {
-                    clearInterval(countdownTimer);
-                    autoSubmit();
-                }
-            }, 1000);
-        }
-        
-        // Auto-submit when timeout reached
-        function autoSubmit() {
-            showNotification('⏰ Time expired! Auto-approving all tasks...', 'info');
-            
-            // Auto-approve all tasks
-            Object.keys(taskStates).forEach(taskId => {
-                taskStates[taskId].approved = true;
-                taskStates[taskId].rejected = false;
-            });
-            
-            updateStatistics();
-            submitApproval();
-        }
-        
-        // Show/hide loading state
-        function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
-            document.getElementById('main-content').style.display = show ? 'none' : 'block';
-        }
-        
-        // Show notification
-        function showNotification(message, type = 'info', duration = 3000) {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.textContent = message;
-            
-            document.body.appendChild(notification);
-            
-            setTimeout(() => notification.classList.add('show'), 100);
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-                setTimeout(() => document.body.removeChild(notification), 300);
-            }, duration);
-        }
-        
-        // Extinguish UI after successful submission
-        function extinguishUI(approvedCount) {
-            // Replace entire page content with success message
-            document.body.innerHTML = `
-                <div style="
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
-                    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-                    color: white;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    text-align: center;
-                    padding: 20px;
-                ">
-                    <div style="
-                        background: rgba(255, 255, 255, 0.1);
-                        padding: 60px 40px;
-                        border-radius: 20px;
-                        backdrop-filter: blur(10px);
-                        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
-                        max-width: 600px;
-                    ">
-                        <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
-                        <h1 style="font-size: 2.5rem; margin-bottom: 20px; font-weight: 700;">
-                            Tasks Submitted Successfully!
-                        </h1>
-                        <p style="font-size: 1.3rem; margin-bottom: 15px; opacity: 0.9;">
-                            ${approvedCount} approved tasks have been sent to N8N
-                        </p>
-                        <p style="font-size: 1.1rem; opacity: 0.8; margin-bottom: 30px;">
-                            Your Monday.com integration will process these tasks shortly.
-                        </p>
-                        <div style="
-                            background: rgba(255, 255, 255, 0.2);
-                            padding: 20px;
-                            border-radius: 10px;
-                            font-size: 0.95rem;
-                            opacity: 0.7;
-                        ">
-                            🔒 This approval session has been completed and cannot be used again.<br>
-                            The data has been securely processed and removed from the system.
-                        </div>
+                    <div class="task-meta">
+                        <div>👤 ${task['assignee(s)_full_names'] || 'Unassigned'}</div>
+                        <div>📅 ${task.date_expected || 'No deadline'}</div>
+                    </div>
+                    <div class="task-description">
+                        ${task.brief_description || 'No description available'}
+                    </div>
+                    <div class="task-actions">
+                        <button class="action-btn approve-btn" onclick="toggleTask('${meetingId}', ${taskIndex}, true)">
+                            Approve
+                        </button>
+                        <button class="action-btn reject-btn" onclick="toggleTask('${meetingId}', ${taskIndex}, false)">
+                            Reject
+                        </button>
                     </div>
                 </div>
             `;
         }
 
-        // Show waiting state when no execution ID is provided
-        function showWaitingState() {
-            showLoading(false);
+        function toggleTask(meetingId, taskIndex, approve) {
+            const task = tasksByMeeting[meetingId].tasks[taskIndex];
+            const taskElement = document.getElementById(`task-${meetingId}-${taskIndex}`);
             
-            const container = document.getElementById('meetings-container');
-            container.innerHTML = `
-                <div class="waiting-state">
-                    <div class="waiting-icon">⏳</div>
-                    <h2>Waiting for N8N Workflow Data</h2>
-                    <p>This TaskForge HITL dashboard is ready and listening.</p>
-                    <p>No active execution found. Please run your N8N workflow to send task data.</p>
-                    <div class="waiting-details">
-                        <div>🔗 <strong>Endpoint:</strong> /store-tasks</div>
-                        <div>📡 <strong>Status:</strong> Ready to receive</div>
-                        <div>⚡ <strong>Auto-refresh:</strong> Every 30 seconds</div>
-                    </div>
-                </div>
-            `;
+            // Update task state
+            const wasApproved = task.approved;
+            task.approved = approve;
             
-            // Hide submit section
-            document.querySelector('.submit-section').style.display = 'none';
+            // Update UI
+            taskElement.classList.remove('approved', 'rejected');
+            if (approve) {
+                taskElement.classList.add('approved');
+                showNotification('Task approved!', 'success');
+            } else {
+                taskElement.classList.add('rejected');
+                showNotification('Task rejected', 'info');
+            }
             
-            // Update header
-            document.getElementById('header-subtitle').textContent = 'Ready to receive N8N workflow data';
+            // Update counters
+            if (approve && !wasApproved) {
+                approvedCount++;
+            } else if (!approve && wasApproved) {
+                approvedCount--;
+            }
             
-            // Auto-refresh every 30 seconds to check for new data
-            setTimeout(() => {
-                window.location.reload();
-            }, 30000);
+            updateProgress();
         }
+
+        function bulkApprove(meetingId, approve) {
+            const meeting = tasksByMeeting[meetingId];
+            const action = approve ? 'approved' : 'rejected';
+            
+            meeting.tasks.forEach((task, index) => {
+                const wasApproved = task.approved;
+                task.approved = approve;
+                
+                const taskElement = document.getElementById(`task-${meetingId}-${index}`);
+                taskElement.classList.remove('approved', 'rejected');
+                if (approve) {
+                    taskElement.classList.add('approved');
+                } else {
+                    taskElement.classList.add('rejected');
+                }
+                
+                // Update counter
+                if (approve && !wasApproved) {
+                    approvedCount++;
+                } else if (!approve && wasApproved) {
+                    approvedCount--;
+                }
+            });
+            
+            updateProgress();
+            showNotification(`All tasks ${action} for ${meeting.meeting_title}`, approve ? 'success' : 'info');
+        }
+
+        async function loadTasksFromServer(execId) {
+            try {
+                console.log('📡 Fetching tasks from server...');
+                const response = await fetch(`/get-tasks/${execId}`);
+                
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        throw new Error('Tasks not found. The approval link may have expired.');
+                    } else if (response.status === 410) {
+                        throw new Error('Tasks have expired. The 15-minute approval window has passed.');
+                    } else {
+                        throw new Error(`Failed to load tasks: ${response.status}`);
+                    }
+                }
+                
+                const data = await response.json();
+                console.log('📦 Received data:', data);
+                
+                if (data.monday_tasks && data.monday_tasks.length > 0) {
+                    totalTasks = data.monday_tasks.length;
+                    executionId = data.execution_id;
+                    
+                    document.getElementById('total-count').textContent = totalTasks;
+                    
+                    tasksByMeeting = groupTasksByMeeting(data.monday_tasks);
+                    renderMeetings();
+                    
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('content').classList.remove('hidden');
+                    
+                    showNotification(`Loaded ${totalTasks} tasks from ${Object.keys(tasksByMeeting).length} meetings`, 'success');
+                } else {
+                    throw new Error('No tasks found in server response');
+                }
+                
+            } catch (error) {
+                console.error('❌ Failed to load tasks from server:', error);
+                document.getElementById('error-message').textContent = error.message;
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('error').classList.remove('hidden');
+            }
+        }
+
+        async function submitApprovals() {
+            console.log('🚀 Starting submission process...');
+            
+            if (!executionId) {
+                showNotification('Error: No execution ID found', 'error');
+                return;
+            }
+            
+            // Collect all tasks with their approval status
+            const allTasksWithApproval = [];
+            Object.entries(tasksByMeeting).forEach(([meetingId, meeting]) => {
+                meeting.tasks.forEach(task => {
+                    allTasksWithApproval.push({
+                        ...task,
+                        approved: task.approved || false,
+                        processed_at: new Date().toISOString()
+                    });
+                });
+            });
+
+            const finalApprovedCount = allTasksWithApproval.filter(task => task.approved === true).length;
+            console.log(`📊 Found ${finalApprovedCount} approved tasks out of ${totalTasks} total`);
+
+            try {
+                const payload = {
+                    execution_id: executionId,
+                    monday_tasks_with_approval: allTasksWithApproval,
+                    approved_count: finalApprovedCount,
+                    total_tasks: totalTasks,
+                    timestamp: new Date().toISOString(),
+                    source: 'TaskForge_HITL_Dashboard'
+                };
+
+                console.log('📤 Submitting to server');
+
+                // Show loading state
+                const submitBtn = document.getElementById('submit-btn');
+                const originalText = submitBtn.textContent;
+                submitBtn.textContent = '⏳ Submitting...';
+                submitBtn.disabled = true;
+
+                // Submit to server
+                const response = await fetch('/submit-approval', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log('📡 Response status:', response.status);
+
+                if (response.ok) {
+                    const responseData = await response.json();
+                    console.log('✅ Success response:', responseData);
+                    
+                    // Show success state
+                    document.getElementById('content').classList.add('hidden');
+                    document.getElementById('success').classList.remove('hidden');
+                    
+                    showNotification(`Successfully submitted ${finalApprovedCount} approved tasks!`, 'success');
+                    
+                    // Auto-close after 3 seconds
+                    setTimeout(() => {
+                        window.close();
+                    }, 3000);
+                    
+                } else {
+                    const errorText = await response.text();
+                    console.error('❌ Server error:', errorText);
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+            } catch (error) {
+                console.error('❌ Submit error:', error);
+                
+                // Reset button
+                const submitBtn = document.getElementById('submit-btn');
+                submitBtn.textContent = '💾 Submit to TaskForge';
+                submitBtn.disabled = false;
+                
+                showNotification(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function init() {
+            const params = getUrlParams();
+            
+            if (params.exec_id) {
+                console.log('🔄 Loading tasks from server using exec_id:', params.exec_id);
+                loadTasksFromServer(params.exec_id);
+            } else {
+                // No execution ID - show waiting state
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('waiting').classList.remove('hidden');
+            }
+        }
+
+        // Initialize on page load
+        init();
     </script>
 </body>
+</html> 
 </html> 
