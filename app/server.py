@@ -260,20 +260,24 @@ def submit_approval():
             'manual'
         ))
         
-        # Update execution status
+        # Update execution status to 'approved'
         conn.execute('''
             UPDATE executions SET status = 'approved' WHERE execution_id = ?
         ''', (execution_id,))
         
+        # EXTINGUISH: Remove execution data after successful approval storage
+        conn.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
+        
         conn.commit()
         conn.close()
         
-        print(f"✅ Manual approval: {len(approved_tasks)}/{len(monday_tasks_with_approval)} tasks for {execution_id}")
+        print(f"✅ Manual approval & data extinguished: {len(approved_tasks)}/{len(monday_tasks_with_approval)} tasks for {execution_id}")
         
         return jsonify({
             'success': True,
             'approved_count': len(approved_tasks),
-            'total_tasks': len(monday_tasks_with_approval)
+            'total_tasks': len(monday_tasks_with_approval),
+            'data_extinguished': True
         })
         
     except Exception as e:
