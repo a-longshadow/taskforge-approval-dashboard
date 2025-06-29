@@ -3,12 +3,16 @@ from flask import Flask, send_from_directory, request, jsonify
 import os
 import requests
 import json
+import sqlite3
 from datetime import datetime, timedelta
 from flask_cors import CORS
 import threading
 import time
-import psycopg2
-from psycopg2 import pool
+try:
+    import psycopg2
+    from psycopg2 import pool
+except ImportError:
+    psycopg2 = None  # Will fallback to SQLite
 
 app = Flask(__name__)
 CORS(app)
@@ -17,50 +21,85 @@ CORS(app)
 # 🛢️ DATABASE CONFIG: Postgres (locally & Railway)
 # ============================================================================
 
-# DATABASE_URL is supplied by Railway.  Locally, create a Postgres database and
-# export it (e.g.  `export DATABASE_URL=postgresql://user:pass@localhost:5432/hitl`).
+# DATABASE_URL is supplied by Railway. Locally you can set it or fall back
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/hitl")
+USE_POSTGRES = bool(DATABASE_URL and psycopg2)
 
-# Create a global connection pool (min=1, max=5) to reuse connections.
-pg_pool = pool.SimpleConnectionPool(minconn=1, maxconn=5, dsn=DATABASE_URL)
+# ------------ Connection wrappers (uniform API) -------------
 
+if USE_POSTGRES:
+    # Create pool once
+    pg_pool = pool.SimpleConnectionPool(minconn=1, maxconn=5, dsn=DATABASE_URL)
 
-class PGConn:
-    """Context-manager wrapper that mimics the subset of sqlite3 we used."""
+    class DBConn:
+        """Context-manager wrapper with sqlite-like API on Postgres."""
+        def __init__(self):
+            self.conn = pg_pool.getconn()
 
-    def __init__(self):
-        self.conn = pg_pool.getconn()
+        def __enter__(self):
+            return self
 
-    # Allow `with PGConn() as conn:` usage
-    def __enter__(self):
-        return self
+        def __exit__(self, exc_type, exc, tb):
+            if exc_type is None:
+                self.conn.commit()
+            else:
+                self.conn.rollback()
+            pg_pool.putconn(self.conn)
 
-    def __exit__(self, exc_type, exc, tb):
-        if exc_type is None:
+        def execute(self, query, params=()):
+            query = query.replace("?", "%s")
+            with self.conn.cursor() as cur:
+                cur.execute(query, params)
+                if query.strip().lower().startswith("select"):
+                    return cur.fetchall()
+
+        def cursor(self):
+            return self.conn.cursor()
+
+        def commit(self):
             self.conn.commit()
-        else:
-            self.conn.rollback()
-        pg_pool.putconn(self.conn)
 
-    def execute(self, query, params=()):
-        query = query.replace("?", "%s")
-        with self.conn.cursor() as cur:
-            cur.execute(query, params)
+else:
+    # Use local SQLite file
+    LOCAL_DB_FILE = os.environ.get("DB_FILE", "hitl.db")
+
+    class DBConn:
+        def __init__(self):
+            self.conn = sqlite3.connect(LOCAL_DB_FILE)
+
+        def __enter__(self):
+            return self  # return wrapper for unified API
+
+        def __exit__(self, exc_type, exc, tb):
+            if exc_type is None:
+                self.conn.commit()
+            else:
+                self.conn.rollback()
+            self.conn.close()
+
+        def execute(self, query, params=()):
+            cur = self.conn.execute(query, params)
             if query.strip().lower().startswith("select"):
                 return cur.fetchall()
+            return []
 
-    def cursor(self):
-        # Expose raw cursor when needed (rare in this codebase)
-        return self.conn.cursor()
+        def cursor(self):
+            return self.conn.cursor()
 
-    def commit(self):
-        self.conn.commit()
+        def commit(self):
+            self.conn.commit()
 
 
 def connect_db():
-    """Return a PGConn context manager for backwards-compatible calls."""
-    return PGConn()
+    """Return a DBConn context manager (Postgres or SQLite)."""
+    return DBConn()
+
+# Friendly log
+if USE_POSTGRES:
+    print(f"🔗 Using Postgres: {DATABASE_URL}")
+else:
+    print(f"🔗 Using local SQLite: {os.path.abspath(LOCAL_DB_FILE)}")
 
 def init_database():
     """Initialise Postgres tables if they do not yet exist."""
@@ -101,17 +140,13 @@ def cleanup_expired():
 def auto_approve_expired():
     """Auto-approve tasks that have exceeded 15 minutes"""
     with connect_db() as conn:
-        cursor = conn.cursor()
-        
         # Find executions that are expired but not yet approved
         now = datetime.now()
-        cursor.execute('''
+        expired_executions = conn.execute('''
             SELECT execution_id, monday_tasks, total_tasks 
             FROM executions 
             WHERE expires_at < ? AND status = 'pending'
         ''', (now,))
-        
-        expired_executions = cursor.fetchall()
         
         for exec_id, tasks_json, total_tasks in expired_executions:
             print(f"⏰ Auto-approving expired execution: {exec_id} ({total_tasks} tasks)")
@@ -126,6 +161,7 @@ def auto_approve_expired():
                 approved_tasks.append(task)
             
             # Store in approvals table
+            cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO approvals (execution_id, approved_tasks, approved_count, total_tasks, method)
                 VALUES (?, ?, ?, ?, ?)
@@ -163,9 +199,7 @@ def background_cleanup():
             print(f"❌ Background cleanup error: {e}")
             time.sleep(60)
 
-# Start background thread
-cleanup_thread = threading.Thread(target=background_cleanup, daemon=True)
-cleanup_thread.start()
+# Background thread will be started later, after tables are ensured
 
 # ============================================================================
 # 📊 API ENDPOINTS
@@ -233,16 +267,13 @@ def get_tasks(execution_id):
     """Get stored tasks for UI display"""
     try:
         with connect_db() as conn:
-            cursor = conn.cursor()
-            
-            cursor.execute('''
+            result_rows = conn.execute('''
                 SELECT monday_tasks, meeting_title, meeting_organizer, total_tasks, 
                        created_at, expires_at, meetings_data, status
                 FROM executions 
                 WHERE execution_id = ?
             ''', (execution_id,))
-            
-            result = cursor.fetchone()
+            result = result_rows[0] if result_rows else None
         
         if not result:
             return jsonify({'error': 'Tasks not found'}), 404
@@ -335,16 +366,12 @@ def get_approved():
             return jsonify({'error': 'No execution_id provided'}), 400
         
         with connect_db() as conn:
-            cursor = conn.cursor()
-            
-            # Check for approved results
-            cursor.execute('''
+            result_rows = conn.execute('''
                 SELECT approved_tasks, approved_count, total_tasks, submitted_at, method
                 FROM approvals 
                 WHERE execution_id = ?
             ''', (execution_id,))
-            
-            result = cursor.fetchone()
+            result = result_rows[0] if result_rows else None
         
         if result:
             # Found approval - return and clean up
@@ -352,9 +379,8 @@ def get_approved():
             
             # Clean up both tables (self-destruct)
             with connect_db() as conn:
-                cursor = conn.cursor()
-                cursor.execute('DELETE FROM approvals WHERE execution_id = ?', (execution_id,))
-                cursor.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
+                conn.execute('DELETE FROM approvals WHERE execution_id = ?', (execution_id,))
+                conn.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
             
             response_data = {
                 'execution_id': execution_id,
@@ -371,9 +397,8 @@ def get_approved():
         
         # Check if execution still exists (pending)
         with connect_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT status FROM executions WHERE execution_id = ?', (execution_id,))
-            exec_result = cursor.fetchone()
+            exec_rows = conn.execute('SELECT status FROM executions WHERE execution_id = ?', (execution_id,))
+            exec_result = exec_rows[0] if exec_rows else None
         
         if exec_result:
             print(f"⏳ Tasks exist but not yet approved for: {execution_id}")
@@ -392,11 +417,8 @@ def health_check():
     try:
         # Test database connection
         with connect_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT COUNT(*) FROM executions')
-            pending_count = cursor.fetchone()[0]
-            cursor.execute('SELECT COUNT(*) FROM approvals')
-            approved_count = cursor.fetchone()[0]
+            pending_count = conn.execute('SELECT COUNT(*) FROM executions')[0][0]
+            approved_count = conn.execute('SELECT COUNT(*) FROM approvals')[0][0]
         
         return jsonify({
             'status': 'healthy',
@@ -424,8 +446,10 @@ if __name__ == '__main__':
     # Initialize database on startup
     init_database()
     
-    # Initial cleanup
+    # Initial cleanup & start background thread AFTER tables exist
     cleanup_expired()
+    cleanup_thread = threading.Thread(target=background_cleanup, daemon=True)
+    cleanup_thread.start()
     
     port = int(os.environ.get('PORT', 8080))
     print(f"🚀 TaskForge HITL Server starting on port {port}")

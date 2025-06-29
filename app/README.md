@@ -19,8 +19,7 @@ This directory contains the Railway deployment for the TaskForge HITL (Human-in-
 ## 🔄 Architecture
 
 ### HTTP Request Flow (New)
-```
-n8n → POST /store-tasks → UI loads via /get-tasks → User approves → POST /submit-approval → n8n GET /get-approved
+```n8n → POST /store-tasks → UI loads via /get-tasks → User approves → POST /submit-approval → n8n GET /get-approved
 ```
 
 ### Endpoints
@@ -45,6 +44,14 @@ n8n → POST /store-tasks → UI loads via /get-tasks → User approves → POST
 ```bash
 cd app/
 pip install -r requirements.txt
+# --- Quick Postgres setup (Docker) ---
+# pull & run a disposable Postgres 16 container
+docker run -d --name hitl-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=hitl -p 5432:5432 postgres:16
+
+# create a .env file (or export) with:
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/hitl
+
+# then run the server
 python server.py
 ```
 
