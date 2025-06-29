@@ -3,8 +3,6 @@ from flask import Flask, send_from_directory, request, jsonify
 import os
 import requests
 import json
-import graphene
-from flask_graphql import GraphQLView
 import sqlite3
 from datetime import datetime, timedelta
 from flask_cors import CORS

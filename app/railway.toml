@@ -2,4 +2,8 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python server.py" 
+startCommand = "python server.py"
+restartPolicyType = "always"
+
+[variables]
+PORT = "8080" 
