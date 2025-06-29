@@ -280,8 +280,13 @@ def get_tasks(execution_id):
         
         tasks_json, meeting_title, meeting_organizer, total_tasks, created_at, expires_at, meetings_json, status = result
         
-        # Check if expired
-        if datetime.fromisoformat(expires_at.replace('Z', '+00:00')) < datetime.now():
+        # Check if expired (Postgres returns datetime, SQLite returns str)
+        if isinstance(expires_at, str):
+            exp_dt = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+        else:  # already a datetime object
+            exp_dt = expires_at
+
+        if exp_dt < datetime.now():
             return jsonify({'error': 'Tasks have expired'}), 410
         
         data = {
