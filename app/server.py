@@ -390,4 +390,5 @@ if __name__ == '__main__':
     print(f"⏰ Auto-approval timeout: 15 minutes")
     print(f"🧹 Background cleanup: Active")
     
-    app.run(host='0.0.0.0', port=port, debug=True) 
+    debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() in ('1', 'true', 'yes')
+    app.run(host='0.0.0.0', port=port, debug=debug_mode) 
