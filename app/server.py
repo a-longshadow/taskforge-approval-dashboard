@@ -225,7 +225,7 @@ def get_tasks(execution_id):
         
         print(f"📤 Serving {total_tasks} tasks for {execution_id}")
         return jsonify(data)
-        
+    
     except Exception as e:
         print(f"❌ Error getting tasks: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -240,7 +240,7 @@ def submit_approval():
         
         if not execution_id:
             return jsonify({'error': 'No execution_id provided'}), 400
-        
+            
         # Filter approved tasks
         approved_tasks = [task for task in monday_tasks_with_approval if task.get('approved') == True]
         
@@ -337,7 +337,7 @@ def get_approved():
         
         print(f"❌ No data found for execution: {execution_id}")
         return jsonify({'error': 'Execution ID not found or already processed'}), 404
-        
+            
     except Exception as e:
         print(f"❌ Error getting approved tasks: {str(e)}")
         return jsonify({'error': str(e)}), 500
