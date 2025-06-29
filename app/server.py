@@ -290,6 +290,9 @@ def get_tasks(execution_id):
         if exp_dt < now_dt:
             return jsonify({'error': 'Tasks have expired'}), 410
         
+        if status != 'pending':
+            return jsonify({'error': 'Execution already processed'}), 410
+
         data = {
             'execution_id': execution_id,
             'monday_tasks': json.loads(tasks_json),
@@ -297,7 +300,7 @@ def get_tasks(execution_id):
             'meeting_organizer': meeting_organizer,
             'total_tasks': total_tasks,
             'created_at': created_at,
-            'expires_at': expires_at,
+            'expires_at': exp_dt.isoformat(),
             'status': status,
             'meetings': json.loads(meetings_json) if meetings_json else []
         }
