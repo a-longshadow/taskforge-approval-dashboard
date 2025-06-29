@@ -13,10 +13,52 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================================================
-# 🗄️ SQLITE DATABASE SETUP
+# 🛢️ DATABASE CONFIG: SQLite locally, Postgres on Railway
 # ============================================================================
 
-DB_FILE = 'hitl.db'
+# In production Railway automatically injects DATABASE_URL for its Postgres
+# addon.  If present we connect to Postgres but keep the existing sqlite-style
+# calls by monkey-patching a lightweight wrapper that mimics the sqlite3
+# Connection interface (execute / cursor / commit / close).
+
+DB_FILE = os.environ.get("DB_FILE", "/tmp/hitl.db")  # default for SQLite
+
+DATABASE_URL = os.environ.get("DATABASE_URL")  # Provided by Railway Postgres
+
+if DATABASE_URL:
+    import psycopg2
+
+    class PostgresCompat:
+        """Light wrapper so existing `conn.execute(...)` code keeps working."""
+
+        def __init__(self):
+            self.conn = psycopg2.connect(DATABASE_URL)
+
+        def execute(self, query, params=()):
+            # Convert `?` placeholders to `%s` for psycopg2
+            query = query.replace("?", "%s")
+            with self.conn.cursor() as cur:
+                cur.execute(query, params)
+                if query.strip().lower().startswith("select"):
+                    return cur.fetchall() if "*" in query else cur
+            self.conn.commit()
+            return None
+
+        def cursor(self):
+            return self.conn.cursor()
+
+        def commit(self):
+            self.conn.commit()
+
+        def close(self):
+            self.conn.close()
+
+    # Monkey-patch sqlite3.connect so the rest of the code remains unchanged
+    import types
+    def pg_connect(_):
+        return PostgresCompat()
+
+    sqlite3.connect = pg_connect
 
 def init_database():
     """Initialize SQLite database with proper schema"""
