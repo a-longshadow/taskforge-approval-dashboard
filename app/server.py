@@ -3,151 +3,148 @@ from flask import Flask, send_from_directory, request, jsonify
 import os
 import requests
 import json
-import sqlite3
 from datetime import datetime, timedelta
 from flask_cors import CORS
 import threading
 import time
+import psycopg2
+from psycopg2 import pool
 
 app = Flask(__name__)
 CORS(app)
 
 # ============================================================================
-# 🛢️ DATABASE CONFIG: SQLite locally, Postgres on Railway
+# 🛢️ DATABASE CONFIG: Postgres (locally & Railway)
 # ============================================================================
 
-# In production Railway automatically injects DATABASE_URL for its Postgres
-# addon.  If present we connect to Postgres but keep the existing sqlite-style
-# calls by monkey-patching a lightweight wrapper that mimics the sqlite3
-# Connection interface (execute / cursor / commit / close).
+# DATABASE_URL is supplied by Railway.  Locally, create a Postgres database and
+# export it (e.g.  `export DATABASE_URL=postgresql://user:pass@localhost:5432/hitl`).
 
-DB_FILE = os.environ.get("DB_FILE", "/tmp/hitl.db")  # default for SQLite
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/hitl")
 
-DATABASE_URL = os.environ.get("DATABASE_URL")  # Provided by Railway Postgres
+# Create a global connection pool (min=1, max=5) to reuse connections.
+pg_pool = pool.SimpleConnectionPool(minconn=1, maxconn=5, dsn=DATABASE_URL)
 
-if DATABASE_URL:
-    import psycopg2
 
-    class PostgresCompat:
-        """Light wrapper so existing `conn.execute(...)` code keeps working."""
+class PGConn:
+    """Context-manager wrapper that mimics the subset of sqlite3 we used."""
 
-        def __init__(self):
-            self.conn = psycopg2.connect(DATABASE_URL)
+    def __init__(self):
+        self.conn = pg_pool.getconn()
 
-        def execute(self, query, params=()):
-            # Convert `?` placeholders to `%s` for psycopg2
-            query = query.replace("?", "%s")
-            with self.conn.cursor() as cur:
-                cur.execute(query, params)
-                if query.strip().lower().startswith("select"):
-                    return cur.fetchall() if "*" in query else cur
+    # Allow `with PGConn() as conn:` usage
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
             self.conn.commit()
-            return None
+        else:
+            self.conn.rollback()
+        pg_pool.putconn(self.conn)
 
-        def cursor(self):
-            return self.conn.cursor()
+    def execute(self, query, params=()):
+        query = query.replace("?", "%s")
+        with self.conn.cursor() as cur:
+            cur.execute(query, params)
+            if query.strip().lower().startswith("select"):
+                return cur.fetchall()
 
-        def commit(self):
-            self.conn.commit()
+    def cursor(self):
+        # Expose raw cursor when needed (rare in this codebase)
+        return self.conn.cursor()
 
-        def close(self):
-            self.conn.close()
+    def commit(self):
+        self.conn.commit()
 
-    # Monkey-patch sqlite3.connect so the rest of the code remains unchanged
-    import types
-    def pg_connect(_):
-        return PostgresCompat()
 
-    sqlite3.connect = pg_connect
+def connect_db():
+    """Return a PGConn context manager for backwards-compatible calls."""
+    return PGConn()
 
 def init_database():
-    """Initialize SQLite database with proper schema"""
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS executions (
-            execution_id TEXT PRIMARY KEY,
-            monday_tasks TEXT NOT NULL,
-            meeting_title TEXT,
-            meeting_organizer TEXT,
-            total_tasks INTEGER,
-            status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP,
-            meetings_data TEXT
-        )
-    ''')
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS approvals (
-            execution_id TEXT PRIMARY KEY,
-            approved_tasks TEXT NOT NULL,
-            approved_count INTEGER,
-            total_tasks INTEGER,
-            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            method TEXT DEFAULT 'manual'
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    print("✅ SQLite database initialized")
+    """Initialise Postgres tables if they do not yet exist."""
+    with connect_db() as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS executions (
+                execution_id TEXT PRIMARY KEY,
+                monday_tasks TEXT NOT NULL,
+                meeting_title TEXT,
+                meeting_organizer TEXT,
+                total_tasks INTEGER,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                meetings_data TEXT
+            )
+        ''')
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS approvals (
+                execution_id TEXT PRIMARY KEY,
+                approved_tasks TEXT NOT NULL,
+                approved_count INTEGER,
+                total_tasks INTEGER,
+                submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                method TEXT DEFAULT 'manual'
+            )
+        ''')
+        print("✅ Postgres database schema ensured")
 
 def cleanup_expired():
     """Remove expired executions and old approvals"""
-    conn = sqlite3.connect(DB_FILE)
     now = datetime.now()
-    
-    # Remove expired executions
-    conn.execute('DELETE FROM executions WHERE expires_at < ?', (now,))
-    
-    # Remove approvals older than 24 hours
     yesterday = now - timedelta(hours=24)
-    conn.execute('DELETE FROM approvals WHERE submitted_at < ?', (yesterday,))
-    
-    conn.commit()
-    conn.close()
+    with connect_db() as conn:
+        conn.execute('DELETE FROM executions WHERE expires_at < ?', (now,))
+        conn.execute('DELETE FROM approvals WHERE submitted_at < ?', (yesterday,))
 
 def auto_approve_expired():
     """Auto-approve tasks that have exceeded 15 minutes"""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    
-    # Find executions that are expired but not yet approved
-    now = datetime.now()
-    cursor.execute('''
-        SELECT execution_id, monday_tasks, total_tasks 
-        FROM executions 
-        WHERE expires_at < ? AND status = 'pending'
-    ''', (now,))
-    
-    expired_executions = cursor.fetchall()
-    
-    for exec_id, tasks_json, total_tasks in expired_executions:
-        print(f"⏰ Auto-approving expired execution: {exec_id} ({total_tasks} tasks)")
+    with connect_db() as conn:
+        cursor = conn.cursor()
         
-        # Parse tasks and approve all
-        tasks = json.loads(tasks_json)
-        approved_tasks = []
-        for task in tasks:
-            task['approved'] = True
-            task['auto_approved'] = True
-            task['approval_reason'] = '15-minute timeout'
-            approved_tasks.append(task)
-        
-        # Store in approvals table
+        # Find executions that are expired but not yet approved
+        now = datetime.now()
         cursor.execute('''
-            INSERT OR REPLACE INTO approvals 
-            (execution_id, approved_tasks, approved_count, total_tasks, method)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (exec_id, json.dumps(approved_tasks), len(approved_tasks), total_tasks, 'auto_timeout'))
+            SELECT execution_id, monday_tasks, total_tasks 
+            FROM executions 
+            WHERE expires_at < ? AND status = 'pending'
+        ''', (now,))
         
-        # Update execution status
-        cursor.execute('''
-            UPDATE executions SET status = 'auto_approved' WHERE execution_id = ?
-        ''', (exec_id,))
+        expired_executions = cursor.fetchall()
         
-        print(f"✅ Auto-approved {len(approved_tasks)} tasks for {exec_id}")
-    
-    conn.commit()
-    conn.close()
+        for exec_id, tasks_json, total_tasks in expired_executions:
+            print(f"⏰ Auto-approving expired execution: {exec_id} ({total_tasks} tasks)")
+            
+            # Parse tasks and approve all
+            tasks = json.loads(tasks_json)
+            approved_tasks = []
+            for task in tasks:
+                task['approved'] = True
+                task['auto_approved'] = True
+                task['approval_reason'] = '15-minute timeout'
+                approved_tasks.append(task)
+            
+            # Store in approvals table
+            cursor.execute('''
+                INSERT INTO approvals (execution_id, approved_tasks, approved_count, total_tasks, method)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (execution_id) DO UPDATE SET
+                    approved_tasks = EXCLUDED.approved_tasks,
+                    approved_count = EXCLUDED.approved_count,
+                    total_tasks = EXCLUDED.total_tasks,
+                    method = EXCLUDED.method
+            ''', (exec_id, json.dumps(approved_tasks), len(approved_tasks), total_tasks, 'auto_timeout'))
+            
+            # Update execution status
+            cursor.execute('''
+                UPDATE executions SET status = 'auto_approved' WHERE execution_id = ?
+            ''', (exec_id,))
+            
+            print(f"✅ Auto-approved {len(approved_tasks)} tasks for {exec_id}")
+        
+        # commit handled by context manager
+        pass
     
     return len(expired_executions)
 
@@ -196,23 +193,27 @@ def store_tasks():
         expires_at = datetime.now() + timedelta(minutes=15)
         
         # Store in SQLite
-        conn = sqlite3.connect(DB_FILE)
-        conn.execute('''
-            INSERT OR REPLACE INTO executions 
-            (execution_id, monday_tasks, meeting_title, meeting_organizer, 
-             total_tasks, expires_at, meetings_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            execution_id,
-            json.dumps(monday_tasks),
-            data.get('meeting_title', 'TaskForge Meeting'),
-            data.get('meeting_organizer', ''),
-            len(monday_tasks),
-            expires_at,
-            json.dumps(data.get('meetings', []))
-        ))
-        conn.commit()
-        conn.close()
+        with connect_db() as conn:
+            conn.execute('''
+                INSERT INTO executions (execution_id, monday_tasks, meeting_title, meeting_organizer, 
+                 total_tasks, expires_at, meetings_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (execution_id) DO UPDATE SET
+                    monday_tasks = EXCLUDED.monday_tasks,
+                    meeting_title = EXCLUDED.meeting_title,
+                    meeting_organizer = EXCLUDED.meeting_organizer,
+                    total_tasks = EXCLUDED.total_tasks,
+                    expires_at = EXCLUDED.expires_at,
+                    meetings_data = EXCLUDED.meetings_data
+            ''', (
+                execution_id,
+                json.dumps(monday_tasks),
+                data.get('meeting_title', 'TaskForge Meeting'),
+                data.get('meeting_organizer', ''),
+                len(monday_tasks),
+                expires_at,
+                json.dumps(data.get('meetings', []))
+            ))
         
         print(f"📦 Stored {len(monday_tasks)} tasks for {execution_id} (expires: {expires_at})")
         
@@ -231,18 +232,17 @@ def store_tasks():
 def get_tasks(execution_id):
     """Get stored tasks for UI display"""
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT monday_tasks, meeting_title, meeting_organizer, total_tasks, 
-                   created_at, expires_at, meetings_data, status
-            FROM executions 
-            WHERE execution_id = ?
-        ''', (execution_id,))
-        
-        result = cursor.fetchone()
-        conn.close()
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT monday_tasks, meeting_title, meeting_organizer, total_tasks, 
+                       created_at, expires_at, meetings_data, status
+                FROM executions 
+                WHERE execution_id = ?
+            ''', (execution_id,))
+            
+            result = cursor.fetchone()
         
         if not result:
             return jsonify({'error': 'Tasks not found'}), 404
@@ -287,26 +287,27 @@ def submit_approval():
         approved_tasks = [task for task in monday_tasks_with_approval if task.get('approved') == True]
         
         # Store approval in SQLite
-        conn = sqlite3.connect(DB_FILE)
-        conn.execute('''
-            INSERT OR REPLACE INTO approvals 
-            (execution_id, approved_tasks, approved_count, total_tasks, method)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (
-            execution_id,
-            json.dumps(approved_tasks),
-            len(approved_tasks),
-            len(monday_tasks_with_approval),
-            'manual'
-        ))
-        
-        # Update execution status
-        conn.execute('''
-            UPDATE executions SET status = 'approved' WHERE execution_id = ?
-        ''', (execution_id,))
-        
-        conn.commit()
-        conn.close()
+        with connect_db() as conn:
+            conn.execute('''
+                INSERT INTO approvals (execution_id, approved_tasks, approved_count, total_tasks, method)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT (execution_id) DO UPDATE SET
+                    approved_tasks = EXCLUDED.approved_tasks,
+                    approved_count = EXCLUDED.approved_count,
+                    total_tasks = EXCLUDED.total_tasks,
+                    method = EXCLUDED.method
+            ''', (
+                execution_id,
+                json.dumps(approved_tasks),
+                len(approved_tasks),
+                len(monday_tasks_with_approval),
+                'manual'
+            ))
+            
+            # Update execution status
+            conn.execute('''
+                UPDATE executions SET status = 'approved' WHERE execution_id = ?
+            ''', (execution_id,))
         
         print(f"✅ Manual approval: {len(approved_tasks)}/{len(monday_tasks_with_approval)} tasks for {execution_id}")
         
@@ -333,27 +334,27 @@ def get_approved():
         if not execution_id:
             return jsonify({'error': 'No execution_id provided'}), 400
         
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        
-        # Check for approved results
-        cursor.execute('''
-            SELECT approved_tasks, approved_count, total_tasks, submitted_at, method
-            FROM approvals 
-            WHERE execution_id = ?
-        ''', (execution_id,))
-        
-        result = cursor.fetchone()
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            
+            # Check for approved results
+            cursor.execute('''
+                SELECT approved_tasks, approved_count, total_tasks, submitted_at, method
+                FROM approvals 
+                WHERE execution_id = ?
+            ''', (execution_id,))
+            
+            result = cursor.fetchone()
         
         if result:
             # Found approval - return and clean up
             approved_json, approved_count, total_tasks, submitted_at, method = result
             
             # Clean up both tables (self-destruct)
-            cursor.execute('DELETE FROM approvals WHERE execution_id = ?', (execution_id,))
-            cursor.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
-            conn.commit()
-            conn.close()
+            with connect_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM approvals WHERE execution_id = ?', (execution_id,))
+                cursor.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
             
             response_data = {
                 'execution_id': execution_id,
@@ -369,9 +370,10 @@ def get_approved():
             return jsonify(response_data)
         
         # Check if execution still exists (pending)
-        cursor.execute('SELECT status FROM executions WHERE execution_id = ?', (execution_id,))
-        exec_result = cursor.fetchone()
-        conn.close()
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT status FROM executions WHERE execution_id = ?', (execution_id,))
+            exec_result = cursor.fetchone()
         
         if exec_result:
             print(f"⏳ Tasks exist but not yet approved for: {execution_id}")
@@ -389,13 +391,12 @@ def health_check():
     """Health check endpoint"""
     try:
         # Test database connection
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM executions')
-        pending_count = cursor.fetchone()[0]
-        cursor.execute('SELECT COUNT(*) FROM approvals')
-        approved_count = cursor.fetchone()[0]
-        conn.close()
+        with connect_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM executions')
+            pending_count = cursor.fetchone()[0]
+            cursor.execute('SELECT COUNT(*) FROM approvals')
+            approved_count = cursor.fetchone()[0]
         
         return jsonify({
             'status': 'healthy',
@@ -428,7 +429,7 @@ if __name__ == '__main__':
     
     port = int(os.environ.get('PORT', 8080))
     print(f"🚀 TaskForge HITL Server starting on port {port}")
-    print(f"📊 Database: {DB_FILE}")
+    print(f"📊 Database: {DATABASE_URL}")
     print(f"⏰ Auto-approval timeout: 15 minutes")
     print(f"🧹 Background cleanup: Active")
     
