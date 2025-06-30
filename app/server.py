@@ -66,7 +66,8 @@ else:
 
     class DBConn:
         def __init__(self):
-            self.conn = sqlite3.connect(LOCAL_DB_FILE)
+            # Allow connections to be shared across Flask threads during local testing
+            self.conn = sqlite3.connect(LOCAL_DB_FILE, check_same_thread=False)
 
         def __enter__(self):
             return self  # return wrapper for unified API
@@ -426,13 +427,65 @@ def get_approved():
             
             # Check if execution still exists (pending)
             with connect_db() as conn:
-                exec_rows = conn.execute('SELECT status FROM executions WHERE execution_id = ?', (execution_id,))
-                exec_result = exec_rows[0] if exec_rows else None
-            
-            if exec_result:
-                print(f"⏳ Tasks exist but not yet approved for: {execution_id}")
-                return jsonify({'status': 'pending', 'message': 'Tasks not yet approved'}), 202
-            
+                exec_rows = conn.execute('SELECT monday_tasks, total_tasks, status FROM executions WHERE execution_id = ?', (execution_id,))
+                exec_res = exec_rows[0] if exec_rows else None
+
+            if exec_res:
+                # -------------------------------------------------------------
+                # 🚦 HITL timed-out ➜ auto-approve all remaining tasks
+                # -------------------------------------------------------------
+                tasks_json, total_tasks, current_status = exec_res
+
+                # Parse tasks and mark every one as approved (if not already)
+                tasks_list = json.loads(tasks_json)
+                for t in tasks_list:
+                    t['approved'] = True
+                    # flag only if not manually approved earlier
+                    if 'auto_approved' not in t:
+                        t['auto_approved'] = True
+                        t['approval_reason'] = 'auto_wait_timeout'
+
+                approved_tasks_json = json.dumps(tasks_list)
+
+                # Persist auto-approval
+                with connect_db() as conn:
+                    conn.execute('''
+                        INSERT INTO approvals (execution_id, approved_tasks, approved_count, total_tasks, method)
+                    VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT (execution_id) DO UPDATE SET
+                            approved_tasks = EXCLUDED.approved_tasks,
+                            approved_count = EXCLUDED.approved_count,
+                            total_tasks = EXCLUDED.total_tasks,
+                            method = EXCLUDED.method
+                    ''', (
+                        execution_id,
+                        approved_tasks_json,
+                        len(tasks_list),
+                        total_tasks,
+                        'auto_wait_timeout'
+                    ))
+
+                    # Mark execution as processed
+                    conn.execute('UPDATE executions SET status = ? WHERE execution_id = ?', ('auto_approved', execution_id))
+
+                # Return the freshly approved list (and self-destruct)
+                with connect_db() as conn:
+                    conn.execute('DELETE FROM approvals WHERE execution_id = ?', (execution_id,))
+                    conn.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
+
+                print(f"✅ Auto-approved (wait timeout) and self-destructed data for {execution_id} – returned {len(tasks_list)} tasks")
+
+                return jsonify({
+                    'execution_id': execution_id,
+                    'approved_monday_tasks': tasks_list,
+                    'approved_count': len(tasks_list),
+                    'total_tasks': total_tasks,
+                    'timestamp': datetime.now().isoformat(),
+                    'source': 'TaskForge_HITL_Railway',
+                    'method': 'auto_wait_timeout'
+                })
+
+            # No execution found at all
             print(f"❌ No data found for execution: {execution_id}")
             return jsonify({'error': 'Execution ID not found or already processed'}), 404
             
