@@ -63,3 +63,9 @@ Access at: http://localhost:8080
 - **Stateless**: Each deployment clears all data
 - **Simple**: Pure Flask, no frameworks
 - **Fast**: Minimal dependencies for quick startup 
+
+## ♻️ 2024-07 Update – HITL Behaviour
+
+* The dashboard now supports **hand-pick approval**: only tasks marked `approved` are forwarded; un-selected items are dropped.
+* The `/approved` endpoint blocks for up to 5 minutes (`APPROVAL_WAIT_SEC`). On timeout it auto-approves everything and replies 200 OK. The previous 202 "pending" response no longer exists.
+* For local dev the SQLite connection is opened with `check_same_thread=False` to avoid thread errors when using Flask's debug server. 

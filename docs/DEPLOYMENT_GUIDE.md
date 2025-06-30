@@ -95,4 +95,27 @@ railway up --service web --detach  # push and build
 
 * 502 / Gunicorn not found → verify `requirements.txt` contains `gunicorn` and `NIXPACKS_START_CMD` is set.
 * `psycopg2` errors → Postgres service may be sleeping; open Railway GUI or `railway connect postgres` to wake up.
-* `Tasks not found` → links expire after 15 min; generate new execution. 
+* `Tasks not found` → links expire after 15 min; generate new execution.
+
+---
+
+## 8. Approval-Flow Behaviour (2024-07 update)
+
+### Partial approval (hand-pick)
+* The dashboard now sends an `approved` boolean with every task.
+* `/submit-approval` stores **only** the items where `approved: true` – rejected/untouched tasks are dropped.
+
+### Auto-approval after wait timeout
+* `/approved` blocks up to `APPROVAL_WAIT_SEC` (default 300 s).
+* If no manual approval arrives, it auto-sets `approved: true` on every pending task and returns the payload with
+  ```json
+  {
+    "method": "auto_wait_timeout",
+    "approved_monday_tasks": [...]
+  }
+  ```
+* The old 202 `{"status":"pending"}` response is gone; the endpoint **always** returns 200.
+
+### Local development note (SQLite only)
+* SQLite connections are now opened with `check_same_thread=False` so Flask's threaded dev server no longer raises
+  "Cannot operate on a closed database."  Production (Postgres) remains unchanged. 
