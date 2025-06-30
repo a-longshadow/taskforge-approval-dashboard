@@ -164,7 +164,7 @@ def auto_approve_expired():
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO approvals (execution_id, approved_tasks, approved_count, total_tasks, method)
-                VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (execution_id) DO UPDATE SET
                     approved_tasks = EXCLUDED.approved_tasks,
                     approved_count = EXCLUDED.approved_count,
@@ -230,8 +230,8 @@ def store_tasks():
         with connect_db() as conn:
             conn.execute('''
                 INSERT INTO executions (execution_id, monday_tasks, meeting_title, meeting_organizer, 
-                 total_tasks, expires_at, meetings_data)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+             total_tasks, expires_at, meetings_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (execution_id) DO UPDATE SET
                     monday_tasks = EXCLUDED.monday_tasks,
                     meeting_title = EXCLUDED.meeting_title,
@@ -268,11 +268,11 @@ def get_tasks(execution_id):
     try:
         with connect_db() as conn:
             result_rows = conn.execute('''
-                SELECT monday_tasks, meeting_title, meeting_organizer, total_tasks, 
-                       created_at, expires_at, meetings_data, status
-                FROM executions 
-                WHERE execution_id = ?
-            ''', (execution_id,))
+            SELECT monday_tasks, meeting_title, meeting_organizer, total_tasks, 
+                   created_at, expires_at, meetings_data, status
+            FROM executions 
+            WHERE execution_id = ?
+        ''', (execution_id,))
             result = result_rows[0] if result_rows else None
         
         if not result:
@@ -292,7 +292,7 @@ def get_tasks(execution_id):
         
         if status != 'pending':
             return jsonify({'error': 'Execution already processed'}), 410
-
+        
         data = {
             'execution_id': execution_id,
             'monday_tasks': json.loads(tasks_json),
@@ -330,7 +330,7 @@ def submit_approval():
         with connect_db() as conn:
             conn.execute('''
                 INSERT INTO approvals (execution_id, approved_tasks, approved_count, total_tasks, method)
-                VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT (execution_id) DO UPDATE SET
                     approved_tasks = EXCLUDED.approved_tasks,
                     approved_count = EXCLUDED.approved_count,
@@ -377,45 +377,64 @@ def get_approved():
         
         with connect_db() as conn:
             result_rows = conn.execute('''
-                SELECT approved_tasks, approved_count, total_tasks, submitted_at, method
-                FROM approvals 
-                WHERE execution_id = ?
-            ''', (execution_id,))
+            SELECT approved_tasks, approved_count, total_tasks, submitted_at, method
+            FROM approvals 
+            WHERE execution_id = ?
+        ''', (execution_id,))
             result = result_rows[0] if result_rows else None
-        
-        if result:
-            # Found approval - return and clean up
-            approved_json, approved_count, total_tasks, submitted_at, method = result
+
+            # -------------------------------------------------------------------
+            # 🕒 If not yet approved, block-wait (max 5 min) instead of returning
+            # -------------------------------------------------------------------
+            if not result:
+                MAX_WAIT = int(os.getenv('APPROVAL_WAIT_SEC', 300))  # 300 s default
+                POLL_SEC = 2
+                deadline = time.time() + MAX_WAIT
+
+                while time.time() < deadline and not result:
+                    time.sleep(POLL_SEC)
+                    check_rows = conn.execute('''
+                        SELECT approved_tasks, approved_count, total_tasks, submitted_at, method
+                        FROM approvals 
+                        WHERE execution_id = ?
+                    ''', (execution_id,))
+                    result = check_rows[0] if check_rows else None
+
+            # After wait loop, result may now be available
+
+            if result:
+                # Found approval - return and clean up
+                approved_json, approved_count, total_tasks, submitted_at, method = result
+                
+                # Clean up both tables (self-destruct)
+                with connect_db() as conn:
+                    conn.execute('DELETE FROM approvals WHERE execution_id = ?', (execution_id,))
+                    conn.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
+                
+                response_data = {
+                    'execution_id': execution_id,
+                    'approved_monday_tasks': json.loads(approved_json),
+                    'approved_count': approved_count,
+                    'total_tasks': total_tasks,
+                    'timestamp': submitted_at,
+                    'source': 'TaskForge_HITL_Railway',
+                    'method': method
+                }
+                
+                print(f"✅ Self-destructed data for {execution_id} - returned {approved_count} approved tasks")
+                return jsonify(response_data)
             
-            # Clean up both tables (self-destruct)
+            # Check if execution still exists (pending)
             with connect_db() as conn:
-                conn.execute('DELETE FROM approvals WHERE execution_id = ?', (execution_id,))
-                conn.execute('DELETE FROM executions WHERE execution_id = ?', (execution_id,))
+                exec_rows = conn.execute('SELECT status FROM executions WHERE execution_id = ?', (execution_id,))
+                exec_result = exec_rows[0] if exec_rows else None
             
-            response_data = {
-                'execution_id': execution_id,
-                'approved_monday_tasks': json.loads(approved_json),
-                'approved_count': approved_count,
-                'total_tasks': total_tasks,
-                'timestamp': submitted_at,
-                'source': 'TaskForge_HITL_Railway',
-                'method': method
-            }
+            if exec_result:
+                print(f"⏳ Tasks exist but not yet approved for: {execution_id}")
+                return jsonify({'status': 'pending', 'message': 'Tasks not yet approved'}), 202
             
-            print(f"✅ Self-destructed data for {execution_id} - returned {approved_count} approved tasks")
-            return jsonify(response_data)
-        
-        # Check if execution still exists (pending)
-        with connect_db() as conn:
-            exec_rows = conn.execute('SELECT status FROM executions WHERE execution_id = ?', (execution_id,))
-            exec_result = exec_rows[0] if exec_rows else None
-        
-        if exec_result:
-            print(f"⏳ Tasks exist but not yet approved for: {execution_id}")
-            return jsonify({'status': 'pending', 'message': 'Tasks not yet approved'}), 202
-        
-        print(f"❌ No data found for execution: {execution_id}")
-        return jsonify({'error': 'Execution ID not found or already processed'}), 404
+            print(f"❌ No data found for execution: {execution_id}")
+            return jsonify({'error': 'Execution ID not found or already processed'}), 404
             
     except Exception as e:
         print(f"❌ Error getting approved tasks: {str(e)}")
